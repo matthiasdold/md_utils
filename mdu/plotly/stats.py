@@ -100,6 +100,8 @@ def add_statsmodelfit(
             hoverinfo="skip",  # hover with the filled trace is tricky
             mode="lines",
             **ci_kwargs,
+            row=row,
+            col=col,
         )
 
     if show_obs_ci:
@@ -110,6 +112,8 @@ def add_statsmodelfit(
             mode="lines",
             legendgroup="obs_ci",
             hovertemplate="Obs CI: %{y}<br>x: %{x}",
+            row=row,
+            col=col,
             **obs_ci_kwargs,
         )
         fig.add_scatter(
@@ -117,6 +121,8 @@ def add_statsmodelfit(
             y=statframe["obs_ci_lower"],
             name=f"{ci_alpha:.0%} fit obs CI lower",
             hovertemplate="Obs CI: %{y}<br>x: %{x}",
+            row=row,
+            col=col,
             mode="lines",
             legendgroup="obs_ci",
             **obs_ci_kwargs,
@@ -132,6 +138,8 @@ def add_statsmodelfit(
         hovertemplate="<b>Pred. mean: %{y}, x: %{x}</b><br><br>%{text}",
         hoverlabel=dict(font=dict(family="monospace"), bgcolor="#ccc"),
         text=[stat_text] * len(xorig),
+        row=row,
+        col=col,
         **line_kwargs,
     )
 
