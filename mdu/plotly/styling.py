@@ -7,6 +7,16 @@ def apply_default_styles(
     col: int | None = None,
     xzero: bool = True,
     yzero: bool = True,
+    showgrid: bool = True,
+    ygrid: bool = True,
+    xgrid: bool = True,
+    gridoptions: dict
+    | None = dict(
+        gridcolor="#444444", gridwidth=1, griddash="dot"
+    ),  # options for dash are 'solid', 'dot', 'dash', 'longdash', 'dashdot',
+    # or 'longdashdot'
+    gridoptions_y: dict | None = None,
+    gridoptions_x: dict | None = None,
 ) -> go.Figure:
     fig.update_xaxes(
         showgrid=False,
@@ -43,4 +53,27 @@ def apply_default_styles(
         paper_bgcolor="rgba(0,0,0,0)",
         hoverlabel=dict(font_size=16),
     )
+
+    # grid
+    if showgrid:
+        ygrid = True
+        xgrid = True
+    if gridoptions:
+        gridoptions_x = gridoptions
+        gridoptions_y = gridoptions
+
+    if ygrid:
+        fig.update_yaxes(
+            **gridoptions_y,
+            row=row,
+            col=col,
+        )
+
+    if xgrid:
+        fig.update_xaxes(
+            **gridoptions_x,
+            row=row,
+            col=col,
+        )
+
     return fig
