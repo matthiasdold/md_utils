@@ -544,6 +544,7 @@ def add_cluster_permut_sig_to_plotly(
     showlegend: bool = False,
 ) -> go.Figure:
     """Add a cluster permutation significance indicator to a plotly figure
+
     Parameters
     ----------
     curves_a : np.ndarray

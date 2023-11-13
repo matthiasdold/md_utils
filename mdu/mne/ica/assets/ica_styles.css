@@ -1,0 +1,100 @@
+#ica_dash_main {
+	font: 28px FiraCode, sans-serif;
+}
+#ica_header_row {
+	background: #888888;
+	position: sticky;
+	display: flex;
+	top: 0px;
+	left: 0px;
+	margin: -10px -10px 0px -10px;
+	padding: 5px 5px 5px 5px;
+	z-index: 999;
+}
+#accepted_count_div {
+	margin-left: 20px;
+}
+#accepted_count_div::after {
+	content: "/";
+	margin-left: 20px;
+}
+#rejected_count_div{
+	margin-left: 20px;
+}
+#selection_bar{
+	display: flex;
+	margin-left: 20px;
+}
+#ica_eval_body {
+	display: flex;
+}
+#ica_plot_overlay_div {
+	display: flex;
+	position: sticky;
+	top: 20px;
+	right: 0px;
+	z-index: 999;
+	height: 1600px;
+	margin: -50px -50px 0px 20px;
+}
+.ica_component_row {
+	display: flex;
+	margin: 0px -10px 0px -10px;
+	padding: 20px 0px 20px 20px;
+}
+.ica_component_row_even {
+	background: #eeeeee;
+}
+.ica_component_row_odd {
+	background: #bbbbbb;
+}
+.dash-graph.erp_heatmap {
+	height: 60%;
+}
+.dash-graph.spectra {
+	height: 60%;
+}
+.ica_psd_and_var_col {
+	display: block;
+}	
+.selection_bar_cell_red {
+	width: 20px;
+	margin-right: 5px;
+	background: #ff6060;
+}
+.selection_bar_cell_red:hover {
+	border-color: #ff1010;
+	border-style: solid;
+	border-width: 3px;
+}
+.selection_bar_cell_green{
+	width: 20px;
+	margin-right: 5px;
+	background: #60cf60;
+}
+.selection_bar_cell_green:hover{
+	border-color: #10ff10;
+	border-style: solid;
+	border-width: 3px;
+}
+.selection_radio {
+	text-align: center;
+}
+.radio_label {
+	margin-right: 50px;
+}
+.radio_input {
+	width: 20px;
+	height: 20px;
+	margin-left: 10px;
+}
+#save_btn {
+	font-size: 20px;
+	margin: 0px 20px 0px 0px;
+}
+.saved_btn {
+	background: #60cf60;
+}
+.non_saved_btn {
+	background: #ff6060;
+}
