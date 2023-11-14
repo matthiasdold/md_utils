@@ -1,10 +1,11 @@
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+build_wheel_for_editable = true
 
 [project]
 name = "mdu"
-version = "0.0.2"
+version = "0.0.3"
 authors = [{name="Matthias Dold", email="matthias.dold@gmx.de"}]
 description = "Default utilities I use for electrophys analysis"
 readme ="README.md"
@@ -17,11 +18,8 @@ testpaths = [
     "./"
 ]
 filterwarnings = ["ignore:::.*fire.core"]
-#
+
 # Adding e.g. custom css
-[tool.setuptools.packages.find]
-where = ["mdu"]
-
 [tool.setuptools.package-data]
-mdu = ["*.css"]
-
+mdu = ["*.txt"]
+"mdu.mne.ica.assets" = ["*.css"]
