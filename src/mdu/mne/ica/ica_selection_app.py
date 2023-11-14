@@ -17,7 +17,6 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 from tqdm import tqdm
 
-from mdu.mne.ica.test import a
 from mdu.plotly.mne_plotting import plot_topo, plot_variances
 from mdu.plotly.mne_plotting_utils.epoch_image import plot_epo_image
 from mdu.plotly.mne_plotting_utils.psd import plot_epo_psd
@@ -26,8 +25,6 @@ from mdu.plotly.mne_plotting_utils.time_series import plot_evoked_ts
 # ==============================================================================
 # Plotting functions
 # ==============================================================================
-
-b = a * 2
 
 
 def create_comp_i_figures(
@@ -97,7 +94,33 @@ def create_comp_i_figures(
             zmin = -zmax
             dz = (zmax - zmin) / 20
             contour_kwargs["contours"] = dict(start=zmin, end=zmax, size=dz)
-            figs[k] = plot_func(z, eeg_epo, contour_kwargs=contour_kwargs)
+            fig = plot_func(z, eeg_epo, contour_kwargs=contour_kwargs)
+
+            # have background white
+            fig = fig.update_layout(
+                # paper_bgcolor="#fff",
+                plot_bgcolor="#fff",
+            )
+            figs[k] = fig
+        elif k == "image":
+            fig = plot_func(ica_component, df, color_by=color_by)
+            fig = fig.update_yaxes(
+                title="Epochs"
+            )  # the epochs are sorted by stim --> no longer valid to call it Epcch Nbr.
+            figs[k] = fig
+        elif k == "erp":
+            fig = plot_func(ica_component, df, color_by=color_by)
+            fig = fig.update_layout(
+                legend=dict(
+                    yanchor="top",
+                    y=0.99,
+                    xanchor="left",
+                    x=0.01,
+                    font=dict(size=10),
+                )
+            )
+
+            figs[k] = fig
         else:
             figs[k] = plot_func(ica_component, df, color_by=color_by)
 
@@ -255,6 +278,7 @@ def create_layout_and_figures(
 
     df = epo.metadata
     ica_epos = ica.get_sources(epo)
+    nmax = ica.n_components if nmax < 0 else nmax
 
     assert len(epo) == df.shape[0], "Missmatch <> epoch data and behavioral"
 
@@ -377,7 +401,6 @@ def attach_callbacks(
         ctx = dash.callback_context.triggered[0]
 
         if ctx["prop_id"] == "save_btn.n_clicks":
-            ica_file = ica.header["file"]
             ica.exclude = [i for i, v in enumerate(radios) if v == "reject"]
 
             ica.save(ica_file, overwrite=True)

@@ -25,7 +25,7 @@ def plot_evoked_ts(
     row: int = 1,
     col: int = 1,
     showlegend: bool = True,
-    show: bool = True,
+    show: bool = False,
 ):
     fig = plot_ts(
         epo,

@@ -85,8 +85,11 @@ def plot_epo_psd(
         if picks == []:
             picks = wepo.ch_names
 
-        spectrum = wepo.pick_channels(picks).compute_psd(
-            method="multitaper", verbose=False, **psd_multitaper_kwargs
+        spectrum = wepo.compute_psd(
+            picks=picks,
+            method="multitaper",
+            verbose=False,
+            **psd_multitaper_kwargs,
         )
         freqs = spectrum.freqs
         psds = spectrum.get_data(picks=picks)
