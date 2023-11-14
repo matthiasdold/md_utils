@@ -24,7 +24,7 @@ def plot_epo_psd(
     psd_multitaper_kwargs: dict = {"fmax": 50},
     showlegend: bool = True,
     legendgroup: str | None = None,
-    add_p_stats: bool = True,
+    add_p_stats: bool = False,
     color_fband: list[float, float] = [],
 ) -> go.Figure:
     """Plot the psd of given epochs
@@ -85,9 +85,12 @@ def plot_epo_psd(
         if picks == []:
             picks = wepo.ch_names
 
-        psds, freqs = mne.time_frequency.psd_multitaper(
-            wepo, verbose=False, picks=picks, **psd_multitaper_kwargs
+        spectrum = wepo.pick_channels(picks).compute_psd(
+            method="multitaper", verbose=False, **psd_multitaper_kwargs
         )
+        freqs = spectrum.freqs
+        psds = spectrum.get_data(picks=picks)
+
         # scale depending on the channel types
         ch_types = [d["kind"] for d in wepo.info["chs"]]
         assert len(set(ch_types)) == 1, (

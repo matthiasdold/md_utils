@@ -10,27 +10,28 @@ from functools import partial
 from pathlib import Path
 
 import dash
-import matplotlib.pyplot as plt
 import mne
 import numpy as np
 import plotly.graph_objects as go
 from dash import dcc, html
 from dash.dependencies import Input, Output
-from tqdm.rich import tqdm
+from tqdm import tqdm
 
-from mdu.plotly.mne_plotting import plot_variances
+from mdu.mne.ica.test import a
+from mdu.plotly.mne_plotting import plot_topo, plot_variances
 from mdu.plotly.mne_plotting_utils.epoch_image import plot_epo_image
 from mdu.plotly.mne_plotting_utils.psd import plot_epo_psd
 from mdu.plotly.mne_plotting_utils.time_series import plot_evoked_ts
-from mdu.plotly.mne_plotting_utils.topoplot import plot_topo
 
 # ==============================================================================
 # Plotting functions
 # ==============================================================================
 
+b = a * 2
+
 
 def create_comp_i_figures(
-    ica, ica_epos, df, ncomponent, nth_row=1, color_by="stim"
+    ica, ica_epos, epo, df, ncomponent, nth_row=1, color_by="stim"
 ):
     """Create the plotly figures for the ith ICA component
 
@@ -38,8 +39,11 @@ def create_comp_i_figures(
     ----------
     ica : mne.ICA
         ica instance to porcess
+    ica_epo : mne.Epochs
+        epochs in source space
     epo : mne.Epochs
-        epoch data for psd and time-frequency maps
+        regular epochs
+
     ncomponet : int
         number of the component to display
     nth_row : int
@@ -57,9 +61,10 @@ def create_comp_i_figures(
 
     ch_name = ica_epos.ch_names[ncomponent]
     ica_component = ica_epos.copy().pick_channels([ch_name])
+    # Ensure the ICA component is considered as EEG -> relevant for plotting only
+    ica_component.set_channel_types({ch_name: "eeg"}, verbose=False)
 
     # prepare the figures
-    topo_img_ax = ica.plot_components(picks=[ncomponent], show=False)
     figs = {}
     process_map = {
         "topomap": plot_topo,
@@ -77,10 +82,22 @@ def create_comp_i_figures(
 
     # create the figures
     for k, plot_func in process_map.items():
-        # tqdm.write(f"Processing: {k}")
+        tqdm.write(f"Processing: {k}")
         if k == "topomap":
-            figs[k] = plot_func(topo_img_ax.get_axes()[0])
-            plt.close()  # close figure that was created in the backgrounds with matplotlib # noqa
+            # Get the ICA weights
+            contour_kwargs = {"colorscale": "Jet"}
+            eeg_epo = epo.copy().crop(0, 0.1).pick_types(eeg=True)
+
+            data = np.dot(
+                ica.mixing_matrix_.T,
+                ica.pca_components_[: ica.n_components_],
+            )
+            z = data[ncomponent, :]
+            zmax = np.max(np.abs(z))
+            zmin = -zmax
+            dz = (zmax - zmin) / 20
+            contour_kwargs["contours"] = dict(start=zmin, end=zmax, size=dz)
+            figs[k] = plot_func(z, eeg_epo, contour_kwargs=contour_kwargs)
         else:
             figs[k] = plot_func(ica_component, df, color_by=color_by)
 
@@ -209,11 +226,6 @@ def create_ica_plot_overlay(ica, epo):
     return dcc.Graph(id="ica_overlay_graph", figure=fig)
 
 
-# ==============================================================================
-# Dash setup from xileh xPData
-# ==============================================================================
-
-
 def create_layout_and_figures(
     ica: mne.preprocessing.ICA,
     epo: mne.BaseEpochs,
@@ -283,7 +295,7 @@ def create_layout_and_figures(
                         id="ica_plots_div",
                         children=[
                             create_comp_i_figures(
-                                ica, ica_epos, df, i, nth_row=i + 1
+                                ica, ica_epos, epo, df, i, nth_row=i + 1
                             )
                             for i in tqdm(
                                 range(nmax), desc="Processing single plot"
@@ -411,7 +423,10 @@ def build_ica_app(
     if nmax >= 0:
         n = nmax
 
-    app = dash.Dash(__name__, external_stylesheets=["assets/ica_styles.css"])
-    app.layout = create_layout_and_figures(epo, nmax=n)
+    assets_pth = Path(__file__).parent / "assets"
+    app = dash.Dash(
+        __name__, external_stylesheets=[assets_pth.joinpath("ica_styles.css")]
+    )
+    app.layout = create_layout_and_figures(ica, epo, nmax=n)
     app = attach_callbacks(app, n, ica, epo, ica_file=ica_store_file)
     return app

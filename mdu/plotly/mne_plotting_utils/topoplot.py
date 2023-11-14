@@ -8,7 +8,7 @@ from scipy.interpolate import CloughTocher2DInterpolator
 def create_plotly_topoplot(
     data: np.ndarray,
     inst: mne.io.Raw | mne.Epochs | mne.Evoked,
-    contour_kwargs: dict = {"colorscale": "viridis"},
+    contour_kwargs: dict = {"colorscale": "Viridis"},
     show: bool = False,
 ) -> go.FigureWidget:
     """Plot a topoplot from data and an mne instance for meta data information
@@ -95,7 +95,7 @@ def plot_contour_heatmap(
     radius: float = 1,
     blank_scaling: float = 0.2,
     show: bool = False,
-    contour_kwargs: dict = {"colorscale": "viridis"},
+    contour_kwargs: dict = {"colorscale": "Viridis"},
 ) -> go.FigureWidget:
     # 2D interpolation
     blank_scaling = 0.2
@@ -125,6 +125,13 @@ def plot_contour_heatmap(
         coloraxis="coloraxis",
         **contour_kwargs,
     )
+
+    # Using coloraxis above is used to unify in subplots with multiple axis
+    # but removes any colorscale arguments -> manually fix here
+    if "colorscale" in contour_kwargs:
+        fig = fig.update_layout(
+            coloraxis=dict(colorscale=contour_kwargs["colorscale"])
+        )
 
     if show:
         fig.show()

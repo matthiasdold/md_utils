@@ -87,7 +87,7 @@ def plot_topo(
     data: np.ndarray,
     inst: mne.io.Raw | mne.Epochs | mne.Evoked,
     contour_kwargs: dict = {"colorscale": "viridis"},
-    show: bool = True,
+    show: bool = False,
 ) -> go.Figure:
     """
     Plot a topoplot from data and an mne instance for meta data information.

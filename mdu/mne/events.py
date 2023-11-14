@@ -26,9 +26,9 @@ def inverse_map_events(ev: np.ndarray, evid: dict) -> np.ndarray:
         try:
             imap[int(v)] = int(k)
         except ValueError:
-            d = re.findall(r"(\d+)", v)
+            d = re.findall(r"(\d+)", k)
             if len(d) > 0:
-                imap[int(d[0])] = int(k)
+                imap[v] = int(d[0])
 
     nev = ev.copy()
     nev[:, 2] = [imap.get(x, x) for x in ev[:, 2]]
