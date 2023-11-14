@@ -17,11 +17,11 @@ testpaths = [
     "./"
 ]
 filterwarnings = ["ignore:::.*fire.core"]
-
-# Adding e.g. custom css 
+#
+# Adding e.g. custom css
 [tool.setuptools.packages.find]
 where = ["mdu"]
 
 [tool.setuptools.package-data]
-mne = ["*.css"]
+mdu = ["*.css"]
 

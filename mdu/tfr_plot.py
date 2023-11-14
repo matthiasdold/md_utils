@@ -9,9 +9,9 @@ from matplotlib.colors import Normalize
 from PIL import Image
 from plotly.subplots import make_subplots
 
-from mdu.io.ao import load_ao_data
-from mdu.io.bv import load_bv_data
-from mdu.io.mne import load_fifraw_data
+from mdu.data_io.ao import load_ao_data
+from mdu.data_io.bv import load_bv_data
+from mdu.data_io.mne import load_fifraw_data
 
 
 def load_raw(file: Path) -> mne.io.Raw:
