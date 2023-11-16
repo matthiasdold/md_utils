@@ -8,10 +8,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from plotly_resampler import (register_plotly_resampler,
                               unregister_plotly_resampler)
+from tqdm import tqdm
 
 from mdu.plotly.mne_plotting_utils.epoch_image import plot_epo_image
 from mdu.plotly.mne_plotting_utils.topoplot import create_plotly_topoplot
 from mdu.plotly.styling import apply_default_styles
+from mdu.plotly.time_series import plot_ts_resampling
 
 
 # TODO: [ ] Have a look at the CorticalFootprint/movingdots epo visualisation
@@ -326,3 +328,55 @@ def plot_epoch_image(
         showscale=showscale,
         show=show,
     )
+
+
+def plot_epo_concat(epo: mne.BaseEpochs) -> go.Figure:
+    """Plot epochs concatenated along the time axis
+    Parameters
+    ----------
+    epo : mne.BaseEpochs
+        epochs to plot
+
+    Returns
+    -------
+    go.Figure
+        plotly figure
+    """
+
+    dims = epo.get_data().shape
+    time = np.arange(dims[0] * dims[2]) / epo.info["sfreq"]
+    fig = plot_ts_resampling(
+        np.hstack(epo.get_data()).T, x=time, show=False, names=epo.ch_names
+    )
+    for i_ch, ch in enumerate(epo.ch_names):
+        fig.update_yaxes(title=f"{ch} [V]", row=i_ch + 1, col=1)
+
+    # Lines for where the epochs start
+    epo_starts = time[:: dims[2]]
+    min_max_values = epo.get_data().min(axis=(0, 2)), epo.get_data().max(
+        axis=(0, 2)
+    )
+    for i, estart_time in tqdm(
+        enumerate(epo_starts), desc="Adding epo start vlines"
+    ):
+        # add single trace for each channel -> traces are far quicker than annotations
+        for ich, ch in enumerate(epo.ch_names):
+            fig.add_scatter(
+                x=[estart_time] * 5,
+                y=np.linspace(
+                    min_max_values[0][ich], min_max_values[1][ich], 5
+                ),
+                line_width=1,
+                line_color="#222",
+                name=f"Epo {i}",
+                mode="lines",
+                opacity=0.5,
+                row=ich + 1,
+                col=1,
+                showlegend=False,
+            )
+
+    fig.update_xaxes(title="Time [s]")
+    fig.update_layout(title="Concatenated epochs")
+
+    return fig
