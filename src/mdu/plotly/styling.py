@@ -19,7 +19,7 @@ def apply_default_styles(
     gridoptions_x: dict | None = None,
 ) -> go.Figure:
     fig.update_xaxes(
-        showgrid=False,
+        showgrid=showgrid,
         gridcolor="#444444",
         linecolor="#444444",
         col=col,
@@ -29,7 +29,7 @@ def apply_default_styles(
         fig.update_xaxes(zerolinecolor="#444444", row=row, col=col)
 
     fig.update_yaxes(
-        showgrid=False,
+        showgrid=showgrid,
         gridcolor="#444444",
         zerolinecolor="#444444",
         linecolor="#444444",
