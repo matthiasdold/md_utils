@@ -437,9 +437,3 @@ def plot_psds(
         fig.show()
 
     return fig
-
-
-epo = mne.read_epochs(
-    "../SINDY/ephys/data/PDI_2_4_resting_500Hz_ica_cleaned-epo.fif.gz"
-)
-epo.metadata = pd.DataFrame({"stim": ["off", "on"]})
