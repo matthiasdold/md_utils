@@ -380,3 +380,66 @@ def plot_epo_concat(epo: mne.BaseEpochs) -> go.Figure:
     fig.update_layout(title="Concatenated epochs")
 
     return fig
+
+
+def plot_psds(
+    epo: mne.BaseEpochs,
+    show: bool = False,
+    psd_kwargs: dict = {},
+    color_by: str = "",
+    facet_col: str = "channel",
+    facet_col_wrap: int = 4,
+    px_kwargs: dict = {},
+) -> go.Figure:
+    mne_psd = epo.compute_psd(n_jobs=-1, **psd_kwargs)
+    data = np.vstack(np.transpose(mne_psd.get_data(), (0, 2, 1)))
+
+    data = 10 * np.log10(data)
+
+    # to long dataframe for ease of use with plotly express
+    df = pd.DataFrame(
+        data,
+        columns=mne_psd.ch_names,
+    )
+    df["epo_nr"] = np.repeat(np.arange(len(epo)), mne_psd.get_data().shape[-1])
+    df["freqs"] = np.tile(mne_psd.freqs, len(epo))
+
+    # add metadata for coloring
+    if color_by != "":
+        df[color_by] = np.repeat(
+            epo.metadata[color_by].to_numpy(), mne_psd.get_data().shape[-1]
+        )
+
+    df = df.melt(
+        id_vars=["epo_nr", "freqs"] + [color_by],
+        value_vars=[*mne_psd.ch_names],
+        var_name="channel",
+        value_name="psd",
+    )
+
+    fig = px.line(
+        df,
+        x="freqs",
+        y="psd",
+        color=color_by,
+        facet_col=facet_col,
+        facet_col_wrap=facet_col_wrap,
+        **px_kwargs,
+    )
+
+    if show:
+        fig = fig.update_layout(
+            title="Power Spectral Densities",
+            xaxis_title="Frequency [Hz]",
+            yaxis_title="Power [dB]",
+        )
+
+        fig.show()
+
+    return fig
+
+
+epo = mne.read_epochs(
+    "../SINDY/ephys/data/PDI_2_4_resting_500Hz_ica_cleaned-epo.fif.gz"
+)
+epo.metadata = pd.DataFrame({"stim": ["off", "on"]})
