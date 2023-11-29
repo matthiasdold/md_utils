@@ -11,6 +11,9 @@ from plotly.graph_objs import _box, _violin
 from scipy import stats
 
 from mdu.utils.converters import ToFloatConverter
+from mdu.utils.logging import get_logger
+
+log = get_logger("mdu.stats", propagate=True)
 
 
 def add_ols_fit(
@@ -603,6 +606,8 @@ def add_cluster_permut_sig_to_plotly(
 
     # dbfig = debug_plot(curves_a, curves_b, fobs, h0, thresh)
     # dbfig.savefig("dbfig_test.png")
+    if not any([p < pval for p in pclust]):
+        log.info("No significant clusters found!")
 
     if mode == "spark":
         if row is None or col is None:

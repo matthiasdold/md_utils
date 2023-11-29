@@ -390,11 +390,12 @@ def plot_psds(
     facet_col: str = "channel",
     facet_col_wrap: int = 4,
     px_kwargs: dict = {},
+    average_epochs: bool = False,
 ) -> go.Figure:
     mne_psd = epo.compute_psd(n_jobs=-1, **psd_kwargs)
     data = np.vstack(np.transpose(mne_psd.get_data(), (0, 2, 1)))
 
-    data = 10 * np.log10(data)
+    data = 10 * np.log10(data) + 120  # convert mV -> V and to dB
 
     # to long dataframe for ease of use with plotly express
     df = pd.DataFrame(
@@ -409,10 +410,20 @@ def plot_psds(
         df[color_by] = np.repeat(
             epo.metadata[color_by].to_numpy(), mne_psd.get_data().shape[-1]
         )
+    else:
+        color_by = "epo_nr"
+
+    if average_epochs:
+        idx_cols = (
+            ["freqs"] + [color_by] if color_by != "epo_nr" else ["freqs"]
+        )
+        df = df.groupby(idx_cols)[*mne_psd.ch_names].mean().reset_index()
+        df["epo_nr"] = -1
 
     df = df.melt(
         id_vars=["epo_nr", "freqs"] + [color_by],
-        value_vars=[*mne_psd.ch_names],
+        # value_vars=[*mne_psd.ch_names],
+        value_vars=[c for c in df.columns if c in mne_psd.ch_names],
         var_name="channel",
         value_name="psd",
     )
@@ -421,6 +432,7 @@ def plot_psds(
         df,
         x="freqs",
         y="psd",
+        line_group="epo_nr",
         color=color_by,
         facet_col=facet_col,
         facet_col_wrap=facet_col_wrap,
