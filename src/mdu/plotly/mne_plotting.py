@@ -417,7 +417,7 @@ def plot_psds(
         idx_cols = (
             ["freqs"] + [color_by] if color_by != "epo_nr" else ["freqs"]
         )
-        df = df.groupby(idx_cols)[*mne_psd.ch_names].mean().reset_index()
+        df = df.groupby(idx_cols)[mne_psd.ch_names].mean().reset_index()
         df["epo_nr"] = -1
 
     df = df.melt(

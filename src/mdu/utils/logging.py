@@ -41,13 +41,16 @@ def get_logger(
     logger.propagate = propagate
 
     # if propagate, let the root logger handle the messages
-    if propagate:
+    if (
+        propagate and name != ""
+    ):  # empty string will result in logger == root_logger -> nothing to remove
         logger.handlers = []
     # else add handlers to the named logger to handle itself
     else:
         for hdl in logger.handlers:
             logger.addHandler(hdl)
-        logger.setLevel(log_level)
+
+    logger.setLevel(log_level)
 
     return logger
 

@@ -641,11 +641,13 @@ def add_cluster_permut_sig_to_plotly(
                 row=row,
                 col=col,
             )
+
     elif mode == "p_colorbar":
         # color the background
         for cl, p in zip(clust, pclust):
+            x = time[cl[0][:]]
             if p < pval:
-                x = time[cl[0][:]]
+                log.debug(f"Adding significant values at {x[0]} to {x[-1]}")
                 fig.add_vrect(
                     x0=x[0],
                     x1=x[-1],
@@ -657,9 +659,59 @@ def add_cluster_permut_sig_to_plotly(
                     row=row,
                     col=col,
                 )
+            else:
+                log.debug(f"Cluster not significant from {x[0]} to {x[-1]}")
 
     else:
         raise ModeNotImplementedError(f"Unknown {mode=} for adding signific.")
+
+    return fig
+
+
+def plot_residuals(
+    ypred: np.ndarray,
+    ytrue: np.ndarray,
+    x: np.ndarray | None = None,
+    feature_names: list[str] | None = None,
+    px_kwargs: dict = {
+        "trendline": "lowess",
+        "trendline_color_override": "rgba(0,0,0,0.5)",
+    },
+) -> go.Figure:
+    """Plot the residuals of a regression
+
+    Parameters
+    ----------
+    ypred : np.ndarray
+        the predicted values, n_samples x n_features
+
+    y : np.ndarray
+        the true values, n_samples x n_features
+
+    x : np.ndarray | None
+        if specified use for the x axis, else a range(len(y)) is used
+
+    feature_names : list[str] | None
+        if specified, use for naming the features, else x0, x1, ... are used
+
+    Returns
+    -------
+    go.Figure
+        the figure with the residuals plotted
+    """
+
+    res = ytrue - ypred
+    if len(res.shape) == 1:
+        res = res.reshape(-1, 1)
+
+    xvals = x or np.arange(len(ytrue))
+    feature_names = feature_names or [f"x{i}" for i in range(res.shape[1])]
+
+    df = pd.DataFrame(res, columns=[f"resid_{f}" for f in feature_names])
+    df["x"] = xvals
+    dm = pd.melt(df, id_vars=["x"])
+
+    fig = px.scatter(dm, x="x", y="value", facet_col="variable", **px_kwargs)
 
     return fig
 
