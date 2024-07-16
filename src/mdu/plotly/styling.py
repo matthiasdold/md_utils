@@ -10,8 +10,7 @@ def apply_default_styles(
     showgrid: bool = True,
     ygrid: bool = True,
     xgrid: bool = True,
-    gridoptions: dict
-    | None = dict(
+    gridoptions: dict | None = dict(
         gridcolor="#444444", gridwidth=1, griddash="dot"
     ),  # options for dash are 'solid', 'dot', 'dash', 'longdash', 'dashdot',
     # or 'longdashdot'
@@ -77,3 +76,13 @@ def apply_default_styles(
         )
 
     return fig
+
+
+def get_dareplane_colors() -> list[str]:
+    return [
+        "#0868acff",  # blue
+        "#43a2caff",  # light blue
+        "#7bccc4ff",  # green
+        "#bae4bcff",  # light green
+        "#f0f9e8ff",  # lightest green
+    ]

@@ -250,6 +250,8 @@ def add_box_significance_indicator(
     stat_func: Callable = stats.ttest_ind,
     p_quantiles: tuple = (0.05, 0.01),
     x_offset_inc: float = 0.13,
+    print_stats: bool = False,
+    plot_ns_results: bool = False,
 ) -> go.Figure:
     """
     Add significance indicators between box or violin plots
@@ -274,6 +276,10 @@ def add_box_significance_indicator(
     x_offset_inc: float (0.05)
         basic offset between the legendgroups as this value cannot be retrieved
         from the traces...
+    print_stats: bool (False)
+        if true, print the statistics data frame
+    plot_ns_results: bool (False)
+        if true, also plot the non-significant indicators
 
     Returns
     -------
@@ -317,6 +323,8 @@ def add_box_significance_indicator(
         ]
 
     dstats = compute_stats(sdists, xval_pairs, color_pairs, stat_func)
+    if print_stats == False:
+        print(dstats)
 
     # space occupied in min max range by each line
     line_width_frac = 0.05
@@ -381,7 +389,7 @@ def add_box_significance_indicator(
         )
 
         # For now, just add them to the right - fix me later with time
-        if sig_label == "ns":
+        if sig_label == "ns" and not plot_ns_results:
             # nothing to draw
             pass
         else:
@@ -399,19 +407,21 @@ def add_box_significance_indicator(
                     hovertemplate=hovertemplate,  # have hover on the square
                 )
 
-                fig.add_trace(
-                    go.Scatter(
-                        x=[xmid + dx * i],
-                        y=[yline],
-                        mode="markers",
-                        showlegend=False,
-                        name=sig_label,
-                        marker_color="#f22",
-                        marker_symbol="asterisk",
-                        marker_line_width=2,
-                        marker_size=20,
+                # only add asterisks if not ns
+                if sig_label != "ns":
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[xmid + dx * i],
+                            y=[yline],
+                            mode="markers",
+                            showlegend=False,
+                            name=sig_label,
+                            marker_color="#f22",
+                            marker_symbol="asterisk",
+                            marker_line_width=2,
+                            marker_size=20,
+                        )
                     )
-                )
 
         # Offset next line
         yline -= dy * line_width_frac
@@ -676,6 +686,7 @@ def plot_residuals(
     px_kwargs: dict = {
         "trendline": "lowess",
         "trendline_color_override": "rgba(0,0,0,0.5)",
+        "facet_col_wrap": 4,
     },
 ) -> go.Figure:
     """Plot the residuals of a regression
