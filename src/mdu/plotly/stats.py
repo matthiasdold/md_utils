@@ -250,6 +250,162 @@ def add_box_significance_indicator(
     stat_func: Callable = stats.ttest_ind,
     p_quantiles: tuple = (0.05, 0.01),
     x_offset_inc: float = 0.13,
+    only_significant: bool = True,
+) -> go.Figure:
+    """
+    Add significance indicators between box or violin plots
+
+    Parameters
+    ----------
+    fig : go.Figure
+        the figure to add the indicators to
+    same_color_only: bool (True)
+        only calculate significance between the same colors (legendgroups)
+    xval_pairs: list[tuple] | None (None)
+        specify pairs to consider for the significance calculation, if None,
+        all combinations will be considered
+    color_pairs: list[tuple] | None (None)
+        specify colors to consider for the significance calculation, if None,
+        all combinations will be considered.
+        Only used if same_color_only == False.
+    sig_func: Callable (scipy.stats.ttest_ind)
+        the significance function to consider
+    p_quantiles: tuple[float, float] ((0.05, 0.01))
+        the quantiles to be considered for labeling with `*`, `**`, etc.
+    x_offset_inc: float (0.05)
+        basic offset between the legendgroups as this value cannot be retrieved
+        from the traces...
+    only_significant: bool (True)
+        only show significant indicators, if False, all indicators will be shown
+        with `ns` for non-significant
+
+    Returns
+    -------
+    fig : go.Figure
+        the figure with significance indicators added
+    """
+
+    # Consider only box and violin plots as distributions
+    dists = [
+        elm
+        for elm in fig.data
+        if isinstance(elm, _box.Box) or isinstance(elm, _violin.Violin)
+    ]
+
+    # extend to single distributions (one for each x value)
+    xmap = get_map_xcat_to_linspace(fig)
+    imap = {v: k for k, v in xmap.items()}
+
+    fig = make_xaxis_numeric(fig)
+
+    sdists = pd.DataFrame(
+        [
+            {
+                "lgrp": (
+                    elm["legendgroup"] if elm["legendgroup"] is not None else 1
+                ),
+                "x": xval,
+                "xlabel": imap[xval],
+                "y": elm["y"][
+                    np.asarray(elm["x"]) == xval
+                ],  # filter on x for different color pairs
+            }
+            for elm in dists
+            for xval in np.unique(elm["x"])
+        ]
+    )
+    # Make sure the x axis is reflected as numeric as we cannot draw lines
+    # with offsets otherwise
+
+    if same_color_only:
+        color_pairs = [(cp, cp) for cp in sdists.lgrp.unique()]
+    elif color_pairs is None:
+        # get all pairs
+        color_pairs = [
+            (cp1, cp2)
+            for i, cp1 in enumerate(sdists.lgrp.unique())
+            for cp2 in sdists.lgrp.unique()[i:]
+        ]
+
+    dstats = compute_stats(sdists, xval_pairs, color_pairs, stat_func)
+
+    # space occupied in min max range by each line
+    line_width_frac = 0.05
+
+    ymin = min([np.nanmin(e) for e in sdists.y])
+    ymax = max([np.nanmax(e) for e in sdists.y])
+    dy = ymax - ymin
+    # draw the indicator lines
+    yline = ymin - dy * line_width_frac
+    for rowi, (c1, c2, x1, x2, (stat, pval), n1, n2) in dstats.iterrows():
+        x1_offset = get_x_offset(fig, c1, x_offset_inc)
+        x2_offset = get_x_offset(fig, c2, x_offset_inc)
+        x1p = xmap[x1] + x1_offset
+        x2p = xmap[x2] + x2_offset
+        xmid = x1p + (x2p - x1p) / 2
+
+        msk = [pval < pq for pq in p_quantiles]
+        if not any(msk):
+            sig_label = "ns<br>"  # add the <br> to offset position upwards
+            if only_significant:
+                continue
+
+        elif all(msk):
+            sig_label = "*" * len(msk)
+        else:
+            # get the first False
+            sig_label = "*" * msk.index(False)
+
+        # the line
+        fig.add_trace(
+            go.Scatter(
+                x=[x1p, x2p],
+                y=[yline, yline],
+                mode="lines+markers",
+                marker={"size": 10, "symbol": "line-ns", "line_width": 2},
+                line_color="#555555",
+                line_dash="dot",
+                showlegend=False,
+                hoverinfo="skip",  # disable hover
+            )
+        )
+
+        # Marker for hover
+        hovertemplate = (
+            f"<b>{x1}</b> vs. <b>{x2}</b><br>"
+            f"<b>test function</b>: {stat_func.__name__}"
+            f"<br><b>N-dist1</b>: {n1}<br><b>N-dist2</b>: {n2}<br>"
+            f"<b>statistic</b>: {stat}<br><b>pval</b>: {pval}<extra></extra>"
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=[xmid],
+                y=[yline],
+                mode="text",
+                text=[sig_label],
+                showlegend=False,
+                name=sig_label,
+                marker_line_width=2,
+                marker_size=10,
+                hovertemplate=hovertemplate,
+            )
+        )
+
+        # Offset next line
+        yline -= dy * line_width_frac
+
+    return fig
+
+
+def add_box_significance_indicator_legacy(
+    fig: go.Figure,
+    same_color_only: bool = False,
+    xval_pairs: list[tuple] | None = None,
+    color_pairs: list[tuple] | None = None,
+    stat_func: Callable = stats.ttest_ind,
+    p_quantiles: tuple = (0.05, 0.01),
+    x_offset_inc: float = 0.13,
     print_stats: bool = False,
     plot_ns_results: bool = False,
 ) -> go.Figure:
