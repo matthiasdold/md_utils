@@ -11,22 +11,24 @@
 from functools import partial
 from typing import Callable, Literal, Optional
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
-import probscale
+# import probscale
 import statsmodels.api as sm
-from autograd import jacobian as jac
-from matplotlib import pyplot
-from plotly._subplots import _get_grid_subplot, _get_subplot_ref_for_trace
+# from autograd import jacobian as jac
+# from matplotlib import pyplot
+# from plotly._subplots import _get_grid_subplot, _get_subplot_ref_for_trace
 from plotly.subplots import make_subplots
-from probscale.viz import validate as ax_validate
+# from probscale.viz import validate as ax_validate
 from scipy import stats
-from statsmodels.distributions.empirical_distribution import ECDF
+# from statsmodels.distributions.empirical_distribution import ECDF
 from statsmodels.regression.linear_model import OLS
 from statsmodels.tools.tools import add_constant
 
-from mdu.plotly.styling import apply_default_styles
+# from mdu.plotly.styling import apply_default_styles
 
 
 def prepare_subplots(shape: tuple, facet_col_wrap: int = 4) -> go.Figure:
@@ -56,7 +58,6 @@ def probplot(
 
     Axis are sorted same as used by minitab
     https://support.minitab.com/en-us/minitab/help-and-how-to/graphs/probability-plot/interpret-the-results/key-results/
-
 
     Parameters
     ----------
@@ -110,6 +111,7 @@ def probplot(
             mode="markers",
             row=row,
             col=col,
+            marker=dict(color="blue"),
         )
 
         # add CI - following code from pingouin.plotting.qqplot
@@ -298,7 +300,7 @@ def add_ci_and_line(
     upper = back_tf(fwd_tf(fit_val) + crit * se)
     lower = back_tf(fwd_tf(fit_val) - crit * se)
 
-    for yvals in [upper, lower]:
+    for yvals, name in zip([upper, lower], ["Upper", "Lower"]):
         xp = yvals if invert_axis else xw
         yp = xw if invert_axis else yvals
         fig.add_scatter(
@@ -310,6 +312,7 @@ def add_ci_and_line(
             showlegend=False,
             row=row,
             col=col,
+            name=f"{name} - {ci=:.1%}",
         )
 
     return fig
@@ -605,8 +608,59 @@ def test_against_reliability():
     figp.show()
 
 
+def plot_hist_and_dist(
+    x: np.ndarray,
+    distgen: stats._continuous_distns = stats.distributions.norm,
+    **kwargs,
+) -> go.Figure:
+    """Plot histogram and the pdf of a fitted distribution
+
+    Parameters
+    ----------
+    x : np.ndarray
+        data for the histogram
+
+    distgen: stats._continuous_distns = stats.distributions.norm,
+        distribution for pdf line plot
+
+    **kwargs
+        additional kwargs are passed to the histogram plot
+
+
+    Returns
+    -------
+    go.Figure
+
+    """
+
+    params = distgen.fit(x)
+    args = params[:-2]
+    loc = params[0]
+    scale = params[1]
+
+    fig = go.Figure()
+    fig = fig.add_histogram(
+        x=x,
+        histnorm="probability density",
+        name="hist",
+        marker_color="blue",
+        **kwargs,
+    )
+
+    xx = np.linspace(x.min(), x.max(), 100)
+    fig = fig.add_scatter(
+        x=xx,
+        y=distgen.pdf(xx, *args, loc=loc, scale=scale),
+        mode="lines",
+        name="pdf",
+        line=dict(color="red"),
+    )
+
+    return fig
+
+
 if __name__ == "__main__":
-    x = np.random.randn(30)
+    x = np.random.randn(300)
 
     x = np.random.randn(300).reshape(50, 6)
 
