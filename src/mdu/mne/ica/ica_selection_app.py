@@ -17,6 +17,8 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 from tqdm import tqdm
 
+from mdu.plotly.mne.ica.ica_utils.shared import (attach_callbacks,
+                                                 create_ica_plot_overlay)
 from mdu.plotly.mne_plotting import plot_topo, plot_variances
 from mdu.plotly.mne_plotting_utils.epoch_image import plot_epo_image
 from mdu.plotly.mne_plotting_utils.psd import plot_epo_psd
@@ -192,63 +194,6 @@ def create_comp_i_figures(
     return out_html
 
 
-def create_ica_plot_overlay(ica, epo):
-    evk = epo.average()
-    evk_clean = ica.apply(evk.copy())
-
-    print(ica.exclude)
-
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            y=evk.times,
-            x=np.zeros(evk.times.shape),
-            showlegend=False,
-            hoverinfo="skip",
-            line={"color": "#0000ff"},
-        )
-    )
-
-    for i, yi in enumerate(evk.data):
-        legend = True if i == 1 else False
-        fig.add_trace(
-            go.Scatter(
-                y=evk.times,
-                x=yi,
-                name="raw",
-                showlegend=legend,
-                hoverinfo="skip",
-                line={"color": "#ff0000"},
-            )
-        )
-
-    for i, yi in enumerate(evk_clean.data):
-        legend = True if i == 1 else False
-        fig.add_trace(
-            go.Scatter(
-                y=evk.times,
-                x=yi,
-                name="ica_filtered",
-                showlegend=legend,
-                hoverinfo="skip",
-                line={"color": "#000000"},
-            )
-        )
-
-    fig.update_layout(
-        dict(
-            font=dict(
-                size=18,
-            ),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
-        )
-    )
-
-    return dcc.Graph(id="ica_overlay_graph", figure=fig)
-
-
 def create_layout_and_figures(
     ica: mne.preprocessing.ICA,
     epo: mne.BaseEpochs,
@@ -337,81 +282,6 @@ def create_layout_and_figures(
         ],
     )
     return layout
-
-
-def attach_callbacks(
-    app: dash.Dash,
-    ncomponents: int,
-    ica: mne.preprocessing.ICA,
-    epo: mne.BaseEpochs,
-    ica_file: Path = Path("./wip_ica.fif"),
-) -> dash.Dash:
-    # dynamic header row
-    @app.callback(
-        [
-            Output("accepted_count_div", "children"),
-            Output("rejected_count_div", "children"),
-        ]
-        + [
-            Output(f"selection_bar_{i}", "className")
-            for i in range(ncomponents)
-        ]
-        + [Output("ica_plot_overlay_div", "children")],
-        [Input(f"select_radio_{i}", "value") for i in range(ncomponents)],
-    )
-    def change_accepted_rejected_count(*radios):
-        """
-        accepted_ and rejected_count_div simply show the total amount of
-        accepted and rejected redio boxes.
-
-        The selection_bar_* will be a simple one char box either green or red
-        for each component. -> coloring via css, we set the text to 1 or 0
-        """
-
-        # nicer to have a binary list for debug printing
-        bin_list = [1 if v == "accept" else 0 for v in radios]
-        selection_list_str = [
-            "selection_bar_cell_green"
-            if v == "accept"
-            else "selection_bar_cell_red"
-            for v in radios
-        ]
-
-        # update the exclude list
-        ica.exclude = [i for i in range(len(bin_list)) if bin_list[i] == 0]
-
-        return (
-            [sum(bin_list), sum([i == 0 for i in bin_list])]
-            + selection_list_str
-            + [create_ica_plot_overlay(ica, epo)]
-        )
-
-    # saving the selection
-    @app.callback(
-        Output("save_btn", "className"),
-        Input("save_btn", "n_clicks"),
-        [Input(f"select_radio_{i}", "value") for i in range(ncomponents)],
-    )
-    def save_to_file_or_change_color(nclick, *radios):
-        """Save the ica model with the selection to a fif"""
-
-        save_str = "non_saved_btn"
-        # find which was the change -> take just the first as we would not have
-        # a simulatneous change of two inputs
-        ctx = dash.callback_context.triggered[0]
-
-        if ctx["prop_id"] == "save_btn.n_clicks":
-            ica.exclude = [i for i, v in enumerate(radios) if v == "reject"]
-
-            ica.save(ica_file, overwrite=True)
-
-            save_str = "saved_btn"
-
-        return save_str
-
-    # Placeholder --> preview of the projection given the new selection
-
-    return app
 
 
 def build_ica_app(
