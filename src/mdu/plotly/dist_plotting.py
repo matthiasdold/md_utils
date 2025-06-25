@@ -16,14 +16,18 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+
 # import probscale
 import statsmodels.api as sm
+
 # from autograd import jacobian as jac
 # from matplotlib import pyplot
 # from plotly._subplots import _get_grid_subplot, _get_subplot_ref_for_trace
 from plotly.subplots import make_subplots
+
 # from probscale.viz import validate as ax_validate
 from scipy import stats
+
 # from statsmodels.distributions.empirical_distribution import ECDF
 from statsmodels.regression.linear_model import OLS
 from statsmodels.tools.tools import add_constant
@@ -220,18 +224,14 @@ def pp_plot(
     return fig
 
 
-def fwd_transform(
-    x: np.ndarray, pp: sm.ProbPlot, input_type: str
-) -> np.ndarray:
+def fwd_transform(x: np.ndarray, pp: sm.ProbPlot, input_type: str) -> np.ndarray:
     if input_type == "quantiles":
         return x
     else:
         return pp.dist.ppf(x)
 
 
-def back_transform(
-    x: np.ndarray, pp: sm.ProbPlot, input_type: str
-) -> np.ndarray:
+def back_transform(x: np.ndarray, pp: sm.ProbPlot, input_type: str) -> np.ndarray:
     if input_type == "quantiles":
         return x
     else:
@@ -326,13 +326,9 @@ def get_axis_probs(n: int) -> np.ndarray:
 
     # different spacing for larger data
     if n >= 50:
-        axis_probs = np.hstack(
-            [small / 10, axis_probs, 100 - small[::-1] / 10]
-        )
+        axis_probs = np.hstack([small / 10, axis_probs, 100 - small[::-1] / 10])
     if n >= 500:
-        axis_probs = np.hstack(
-            [small / 100, axis_probs, 100 - small[::-1] / 100]
-        )
+        axis_probs = np.hstack([small / 100, axis_probs, 100 - small[::-1] / 100])
     axis_probs /= 100.0
 
     return axis_probs
@@ -390,9 +386,7 @@ def fmt_probplot_axis(
 
 def add_ref_line(
     fig: go.Figure,
-    line_type: Literal[
-        "diag", "standardized", "regression", "quartiles"
-    ] = "diag",
+    line_type: Literal["diag", "standardized", "regression", "quartiles"] = "diag",
     dist: Callable | None = None,
     line_kwargs: dict | None = None,
     row: int | None = None,
@@ -568,15 +562,11 @@ def create_subplot_axis_map(fig: go.Figure) -> tuple[dict, dict]:
 
     # Note the axis flip as we are interested in the anchors
     cmap = dict(
-        zip(
-            [a.anchor for a in fig.select_yaxes()], [t[1] for t in subplotgrid]
-        )
+        zip([a.anchor for a in fig.select_yaxes()], [t[1] for t in subplotgrid])
     )
 
     rmap = dict(
-        zip(
-            [a.anchor for a in fig.select_xaxes()], [t[0] for t in subplotgrid]
-        )
+        zip([a.anchor for a in fig.select_xaxes()], [t[0] for t in subplotgrid])
     )
     return rmap, cmap
 
@@ -588,9 +578,7 @@ def test_against_reliability():
 
     dist = Normal_Distribution(mu=50, sigma=10)
     failures = dist.random_samples(100, seed=5)
-    figr = Normal_probability_plot(
-        failures=failures
-    )  # generates the probability plot
+    figr = Normal_probability_plot(failures=failures)  # generates the probability plot
     dist.CDF(
         linestyle="--", label="True CDF"
     )  # this is the actual distribution provided for comparison

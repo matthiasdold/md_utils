@@ -6,8 +6,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from plotly_resampler import (register_plotly_resampler,
-                              unregister_plotly_resampler)
+from plotly_resampler import register_plotly_resampler, unregister_plotly_resampler
 from tqdm import tqdm
 
 from mdu.plotly.mne_plotting_utils.epoch_image import plot_epo_image
@@ -113,9 +112,7 @@ def plot_topo(
         topo plot figure in plotly
 
     """
-    fig = create_plotly_topoplot(
-        data, inst, contour_kwargs=contour_kwargs, show=show
-    )
+    fig = create_plotly_topoplot(data, inst, contour_kwargs=contour_kwargs, show=show)
 
     return fig
 
@@ -353,19 +350,13 @@ def plot_epo_concat(epo: mne.BaseEpochs) -> go.Figure:
 
     # Lines for where the epochs start
     epo_starts = time[:: dims[2]]
-    min_max_values = epo.get_data().min(axis=(0, 2)), epo.get_data().max(
-        axis=(0, 2)
-    )
-    for i, estart_time in tqdm(
-        enumerate(epo_starts), desc="Adding epo start vlines"
-    ):
+    min_max_values = epo.get_data().min(axis=(0, 2)), epo.get_data().max(axis=(0, 2))
+    for i, estart_time in tqdm(enumerate(epo_starts), desc="Adding epo start vlines"):
         # add single trace for each channel -> traces are far quicker than annotations
         for ich, ch in enumerate(epo.ch_names):
             fig.add_scatter(
                 x=[estart_time] * 5,
-                y=np.linspace(
-                    min_max_values[0][ich], min_max_values[1][ich], 5
-                ),
+                y=np.linspace(min_max_values[0][ich], min_max_values[1][ich], 5),
                 line_width=1,
                 line_color="#222",
                 name=f"Epo {i}",
@@ -414,9 +405,7 @@ def plot_psds(
         color_by = "epo_nr"
 
     if average_epochs:
-        idx_cols = (
-            ["freqs"] + [color_by] if color_by != "epo_nr" else ["freqs"]
-        )
+        idx_cols = ["freqs"] + [color_by] if color_by != "epo_nr" else ["freqs"]
         df = df.groupby(idx_cols)[mne_psd.ch_names].mean().reset_index()
         df["epo_nr"] = -1
 

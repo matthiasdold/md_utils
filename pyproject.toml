@@ -8,7 +8,7 @@ version = "0.0.3"
 authors = [{name="Matthias Dold", email="matthias.dold@gmx.de"}]
 description = "Default utilities I use for electrophys analysis"
 readme ="README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 
 [tool.pytest.ini_options]
 addopts = "-ra -q"

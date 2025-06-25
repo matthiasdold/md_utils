@@ -185,9 +185,7 @@ def add_statsmodel_fit(
     if show_ci:
         fig.add_scatter(
             x=np.hstack([xorig, xorig[::-1]]),
-            y=np.hstack(
-                [statframe["mean_ci_upper"], statframe["mean_ci_lower"][::-1]]
-            ),
+            y=np.hstack([statframe["mean_ci_upper"], statframe["mean_ci_lower"][::-1]]),
             name=f"{ci_alpha:.0%} fit CI",
             hoverinfo="skip",  # hover with the filled trace is tricky
             mode="lines",
@@ -301,9 +299,7 @@ def add_box_significance_indicator(
     sdists = pd.DataFrame(
         [
             {
-                "lgrp": (
-                    elm["legendgroup"] if elm["legendgroup"] is not None else 1
-                ),
+                "lgrp": (elm["legendgroup"] if elm["legendgroup"] is not None else 1),
                 "x": xval,
                 "xlabel": imap[xval],
                 "y": elm["y"][
@@ -550,9 +546,7 @@ def add_box_significance_indicator_legacy(
             pass
         else:
             dx = 0.1 * (x2p - x1p)
-            for i, c in enumerate(
-                sig_label
-            ):  # label was create to "*", "**", 'ns'
+            for i, c in enumerate(sig_label):  # label was create to "*", "**", 'ns'
                 fig.add_scatter(
                     x=[xmid + dx * i],
                     y=[yline],
@@ -596,18 +590,14 @@ def get_x_offset(fig: go.Figure, cg_key: str, x_offset_inc: float) -> float:
 
     # via dict to preserver order
     cgrps = list(
-        dict.fromkeys(
-            [trc.offsetgroup for trc in fig.data if "offsetgroup" in trc]
-        )
+        dict.fromkeys([trc.offsetgroup for trc in fig.data if "offsetgroup" in trc])
     )
 
     if len(cgrps) == 0 or len(cgrps) == 1:
         return 0
     else:
         extend = (len(cgrps) - 1) / 2
-        offsets = np.linspace(-extend, extend, len(cgrps)) * (
-            x_offset_inc / extend
-        )
+        offsets = np.linspace(-extend, extend, len(cgrps)) * (x_offset_inc / extend)
         offsetmap = {k: v for k, v in zip(cgrps, offsets)}
 
         return offsetmap[cg_key]
@@ -632,9 +622,7 @@ def compute_stats(
             if cp1 == cp2:
                 uxvals = sdists[(sdists.lgrp == cp1)].xlabel.unique()
                 wxval_pairs = [
-                    (x1, x2)
-                    for i, x1 in enumerate(uxvals)
-                    for x2 in uxvals[i + 1 :]
+                    (x1, x2) for i, x1 in enumerate(uxvals) for x2 in uxvals[i + 1 :]
                 ]
             else:
                 # consider all unique
@@ -658,9 +646,7 @@ def compute_stats(
                             "color2": cp2,
                             "x1": x1,
                             "x2": x2,
-                            "stat": stat_func(
-                                dist1.y.iloc[0], dist2.y.iloc[0]
-                            ),
+                            "stat": stat_func(dist1.y.iloc[0], dist2.y.iloc[0]),
                             "n1": len(dist1.y.iloc[0]),
                             "n2": len(dist2.y.iloc[0]),
                         }
@@ -687,13 +673,9 @@ def make_xaxis_numeric(fig: go.Figure) -> go.Figure:
     return fig
 
 
-def get_map_xcat_to_linspace(
-    fig: go.Figure, xmin: int = 0, xmax: int = 1
-) -> dict:
+def get_map_xcat_to_linspace(fig: go.Figure, xmin: int = 0, xmax: int = 1) -> dict:
     xgrps = list(
-        dict.fromkeys(
-            [u for trc in fig.data for u in np.unique(trc.x) if "x" in trc]
-        )
+        dict.fromkeys([u for trc in fig.data for u in np.unique(trc.x) if "x" in trc])
     )
     xpos = np.linspace(0, 1, len(xgrps))
     return {k: v for k, v in zip(xgrps, xpos)}
@@ -752,8 +734,7 @@ def add_cluster_permut_sig_to_plotly(
     thresh = stats.f.ppf(1 - pval, dfn=dfn, dfd=dfd)  # F distribution
 
     print(
-        f"Calculating cluster permutation in F-stats with {thresh=} and"
-        f" {nperm=}."
+        f"Calculating cluster permutation in F-stats with {thresh=} and" f" {nperm=}."
     )
 
     # the last parameter should be relevant for the adjecency -> here time
@@ -766,9 +747,7 @@ def add_cluster_permut_sig_to_plotly(
         n_permutations=nperm,
     )
 
-    time = (
-        xaxes_vals if xaxes_vals is not None else np.arange(curves_a.shape[1])
-    )
+    time = xaxes_vals if xaxes_vals is not None else np.arange(curves_a.shape[1])
 
     # dbfig = debug_plot(curves_a, curves_b, fobs, h0, thresh)
     # dbfig.savefig("dbfig_test.png")
@@ -915,9 +894,7 @@ if __name__ == "__main__":
     fig.show()
 
     fig = px.box(df, x="label", y="a", color="color")
-    fig = add_box_significance_indicator(
-        fig, x_offset_inc=0.12, same_color_only=False
-    )
+    fig = add_box_significance_indicator(fig, x_offset_inc=0.12, same_color_only=False)
     fig.show()
 
     fig = px.box(df, x="label", y="a", color="color")

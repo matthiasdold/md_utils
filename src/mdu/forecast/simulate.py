@@ -4,6 +4,16 @@ import numpy as np
 import scipy.stats as st
 
 
+class AuxModel:
+    """Helper to fix X during simulation"""
+
+    def __init__(self, model):
+        self.model = model
+
+    def predict(self, y, x=None):
+        return self.model.predict(X=x, y=y).flatten()
+
+
 def simulate_forward(
     model: callable,
     y0: np.ndarray,
@@ -40,9 +50,7 @@ def simulate_forward(
         The simulated state of the system.
     """
     # generate the noise for all steps
-    eps = noise_dist.rvs(
-        size=n_steps_pred * n_sim + 1, random_state=random_state
-    )
+    eps = noise_dist.rvs(size=n_steps_pred * n_sim + 1, random_state=random_state)
 
     ysim = np.zeros((n_sim * n_steps_pred + 1, len(y0)))
     ysim[:, 0] = y0

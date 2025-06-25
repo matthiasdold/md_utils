@@ -2,9 +2,7 @@ import mne
 import numpy as np
 
 
-def find_stim_switch_on(
-    epo: mne.BaseEpochs, sensitivity: float = 0.1
-) -> list[dict]:
+def find_stim_switch_on(epo: mne.BaseEpochs, sensitivity: float = 0.1) -> list[dict]:
     """
     Find the epoch time where the stimulation setting changed following a
     heuristic looking for:
@@ -71,8 +69,6 @@ def find_stim_switch_on(
             data
         ), f"Peak at {ix_max=} is not 7 STD above mean for {rec=}"
 
-        stim_starts.append(
-            dict(epo=rec[1].epoch, time=lfp.times[ix_max], ix=ix_max)
-        )
+        stim_starts.append(dict(epo=rec[1].epoch, time=lfp.times[ix_max], ix=ix_max))
 
     return stim_starts

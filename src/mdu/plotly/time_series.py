@@ -1,8 +1,7 @@
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from plotly_resampler import (register_plotly_resampler,
-                              unregister_plotly_resampler)
+from plotly_resampler import register_plotly_resampler, unregister_plotly_resampler
 
 from mdu.plotly.styling import apply_default_styles
 
