@@ -1,5 +1,7 @@
+from dataclasses import dataclass
 from functools import partial
-from typing import Callable
+from itertools import combinations
+from typing import Callable, Optional
 
 import mne
 import numpy as np
@@ -14,6 +16,25 @@ from mdu.utils.converters import ToFloatConverter
 from mdu.utils.logging import get_logger
 
 log = get_logger("mdu.stats", propagate=True)
+
+
+# TODO: Adding the significance indicators for the box plots is currently not idempotent
+#
+#       as the xaxis is transformed to a categorical axis. This is a problem if you
+#       want to add the significance indicators to a figure that already has a numeric
+#       xaxis. Resolve this e.g. with a wrapper class?
+
+
+@dataclass
+class Cat2Nums:
+    """
+    A convenience wrapper to track xaxis transformation required for
+    adding significance indicators
+    """
+
+    ax_cfg: dict
+    x_cat_map: dict
+    offset_cat_map: dict
 
 
 def add_ols_fit(
@@ -242,12 +263,12 @@ class ModeNotImplementedError(ValueError):
 
 def add_box_significance_indicator(
     fig: go.Figure,
-    same_color_only: bool = False,
+    same_legendgroup_only: bool = False,
     xval_pairs: list[tuple] | None = None,
     color_pairs: list[tuple] | None = None,
     stat_func: Callable = stats.ttest_ind,
     p_quantiles: tuple = (0.05, 0.01),
-    x_offset_inc: float = 0.13,
+    rel_y_offset: float = 0.05,
     only_significant: bool = True,
 ) -> go.Figure:
     """
@@ -257,22 +278,30 @@ def add_box_significance_indicator(
     ----------
     fig : go.Figure
         the figure to add the indicators to
-    same_color_only: bool (True)
+
+    same_legendgroup_only: bool (True)
         only calculate significance between the same colors (legendgroups)
+
     xval_pairs: list[tuple] | None (None)
         specify pairs to consider for the significance calculation, if None,
         all combinations will be considered
+
     color_pairs: list[tuple] | None (None)
         specify colors to consider for the significance calculation, if None,
-        all combinations will be considered.
-        Only used if same_color_only == False.
+        all combinations will be considered. The color_pair values are matched
+        against the legengroup values.
+        Only used if same_legendgroup_only == False.
+
     sig_func: Callable (scipy.stats.ttest_ind)
         the significance function to consider
+
     p_quantiles: tuple[float, float] ((0.05, 0.01))
         the quantiles to be considered for labeling with `*`, `**`, etc.
+
     x_offset_inc: float (0.05)
         basic offset between the legendgroups as this value cannot be retrieved
         from the traces...
+
     only_significant: bool (True)
         only show significant indicators, if False, all indicators will be shown
         with `ns` for non-significant
@@ -283,113 +312,155 @@ def add_box_significance_indicator(
         the figure with significance indicators added
     """
 
-    # Consider only box and violin plots as distributions
-    dists = [
-        elm
-        for elm in fig.data
-        if isinstance(elm, _box.Box) or isinstance(elm, _violin.Violin)
-    ]
+    # ----------------------------------------------------------------------
+    # Hypothesis tests
+    # ----------------------------------------------------------------------
+    df_data = plot_data_to_dataframe(fig)
 
-    # extend to single distributions (one for each x value)
-    xmap = get_map_xcat_to_linspace(fig)
-    imap = {v: k for k, v in xmap.items()}
+    # Do all paired tests for each axis combination (usually subplot) separately
+    dsigs = []
+    for axes, dg in df_data.groupby(["xaxis", "yaxis"]):
+        dsig = group_paired_tests(
+            dg, group_cols=["offsetgroup", "legendgroup", "name", "x"], value_col="y"
+        ).assign(xaxis=axes[0], yaxis=axes[1])
+        dsigs.append(dsig)
 
-    fig = make_xaxis_numeric(fig)
+    ds = pd.concat(dsigs)
 
-    sdists = pd.DataFrame(
-        [
-            {
-                "lgrp": (elm["legendgroup"] if elm["legendgroup"] is not None else 1),
-                "x": xval,
-                "xlabel": imap[xval],
-                "y": elm["y"][
-                    np.asarray(elm["x"]) == xval
-                ],  # filter on x for different color pairs
-            }
-            for elm in dists
-            for xval in np.unique(elm["x"])
+    # ----------------------------------------------------------------------
+    # Limit results according to specified
+    # ----------------------------------------------------------------------
+    # limit stats according to config
+    # >> for xvals
+    if xval_pairs is not None:
+        dsf = [
+            ds[
+                ((ds["x_g1"] == xv1) & (ds["x_g2"] == xv2))
+                | ((ds["x_g1"] == xv2) & (ds["x_g2"] == xv1))
+            ]
+            for xv1, xv2 in xval_pairs
         ]
+
+        ds = pd.concat(dsf)
+
+    # >> for colors
+    if same_legendgroup_only:
+        ds = ds[ds["legendgroup_g1"] == ds["legendgroup_g2"]]
+
+    elif color_pairs is not None:
+        dsf = [
+            ds[
+                ((ds["legendgroup_g1"] == cv1) & (ds["legendgroup_g2"] == cv2))
+                | ((ds["legendgroup_g1"] == cv2) & (ds["legendgroup_g2"] == cv1))
+            ]
+            for cv1, cv2 in color_pairs
+        ]
+
+        ds = pd.concat(dsf)
+
+    # ----------------------------------------------------------------------
+    # Prepare axis
+    # ----------------------------------------------------------------------
+    # Make x axis numeric
+    cat2nums = (
+        None  # working with cat2num to make the rest of the processing idem potent
     )
-    # Make sure the x axis is reflected as numeric as we cannot draw lines
-    # with offsets otherwise
+    fig, cat2nums = make_xaxis_numeric(fig, cat2num=cat2nums)
 
-    if same_color_only:
-        color_pairs = [(cp, cp) for cp in sdists.lgrp.unique()]
-    elif color_pairs is None:
-        # get all pairs
-        color_pairs = [
-            (cp1, cp2)
-            for i, cp1 in enumerate(sdists.lgrp.unique())
-            for cp2 in sdists.lgrp.unique()[i:]
-        ]
+    # ----------------------------------------------------------------------
+    # Plotting
+    # ----------------------------------------------------------------------
+    for gk, dg in ds.groupby(["xaxis", "yaxis"]):
 
-    dstats = compute_stats(sdists, xval_pairs, color_pairs, stat_func)
+        # select the correct Cat2Nums wrapper according to the anchor string
+        cat2num = (
+            cat2nums[0]
+            if len(cat2nums) == 1
+            else [
+                c2n
+                for c2n in cat2nums
+                if c2n.ax_cfg["xaxis_anchor"] == gk[0]
+                and c2n.ax_cfg["yaxis_anchor"] == gk[1]
+            ][0]
+        )
 
-    # space occupied in min max range by each line
-    line_width_frac = 0.05
+        ys = df[(df.xaxis == gk[0]) & (df.yaxis == gk[1])]["y"]
+        dy = ys.max() - ys.min()
 
-    ymin = min([np.nanmin(e) for e in sdists.y])
-    ymax = max([np.nanmax(e) for e in sdists.y])
-    dy = ymax - ymin
-    # draw the indicator lines
-    yline = ymin - dy * line_width_frac
-    for rowi, (c1, c2, x1, x2, (stat, pval), n1, n2) in dstats.iterrows():
-        x1_offset = get_x_offset(fig, c1, x_offset_inc)
-        x2_offset = get_x_offset(fig, c2, x_offset_inc)
-        x1p = xmap[x1] + x1_offset
-        x2p = xmap[x2] + x2_offset
-        xmid = x1p + (x2p - x1p) / 2
+        # draw the indicator lines
+        yline = ys.min() - dy * rel_y_offset
 
-        msk = [pval < pq for pq in p_quantiles]
-        if not any(msk):
-            sig_label = "ns<br>"  # add the <br> to offset position upwards
-            if only_significant:
-                continue
+        # sort according to `left` x for cleaner look with multiple bars
+        dg = dg.sort_values(["x_g1", "x_g2", "legendgroup_g1"])
 
-        elif all(msk):
-            sig_label = "*" * len(msk)
-        else:
-            # get the first False
-            sig_label = "*" * msk.index(False)
+        for _, row in dg.iterrows():
+            msk = [row.pval < pq for pq in p_quantiles]
+            if not any(msk):
+                sig_label = "ns<br>"  # add the <br> to offset position upwards
+                if only_significant:
+                    continue
 
-        # the line
-        fig.add_trace(
-            go.Scatter(
-                x=[x1p, x2p],
-                y=[yline, yline],
-                mode="lines+markers",
-                marker={"size": 10, "symbol": "line-ns", "line_width": 2},
-                line_color="#555555",
-                line_dash="dot",
-                showlegend=False,
-                hoverinfo="skip",  # disable hover
+            elif all(msk):
+                sig_label = "*" * len(msk)
+            else:
+                # get the first False
+                sig_label = "*" * msk.index(False)
+
+            x1p = (
+                cat2num.x_cat_map[row.x_g1] + cat2num.offset_cat_map[row.offsetgroup_g1]
             )
-        )
-
-        # Marker for hover
-        hovertemplate = (
-            f"<b>{x1}</b> vs. <b>{x2}</b><br>"
-            f"<b>test function</b>: {stat_func.__name__}"
-            f"<br><b>N-dist1</b>: {n1}<br><b>N-dist2</b>: {n2}<br>"
-            f"<b>statistic</b>: {stat}<br><b>pval</b>: {pval}<extra></extra>"
-        )
-
-        fig.add_trace(
-            go.Scatter(
-                x=[xmid],
-                y=[yline],
-                mode="text",
-                text=[sig_label],
-                showlegend=False,
-                name=sig_label,
-                marker_line_width=2,
-                marker_size=10,
-                hovertemplate=hovertemplate,
+            x2p = (
+                cat2num.x_cat_map[row.x_g2] + cat2num.offset_cat_map[row.offsetgroup_g2]
             )
-        )
+            xmid = (x1p + x2p) / 2
 
-        # Offset next line
-        yline -= dy * line_width_frac
+            # the line
+            fig.add_trace(
+                go.Scatter(
+                    x=[x1p, x2p],
+                    y=[yline, yline],
+                    mode="lines+markers",
+                    marker={"size": 10, "symbol": "line-ns", "line_width": 1},
+                    line_color="#555555",
+                    line_dash="dot",
+                    showlegend=False,
+                    hoverinfo="skip",  # disable hover
+                ),
+                row=cat2num.ax_cfg["row"],
+                col=cat2num.ax_cfg["col"],
+            )
+
+            # Marker for hover
+            hovertemplate = (
+                f"<b>{row.x_g1}</b> vs. <b>{row.x_g2}</b><br>"
+                f"<b>test function</b>: {stat_func.__name__}"
+                f"<br><b>N-dist1</b>: {row.n1}<br><b>N-dist2</b>: {row.n2}<br>"
+                f"<b>statistic</b>: {row.stat}<br><b>pval</b>: {row.pval}<extra></extra>"
+            )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[xmid],
+                    y=[yline],
+                    mode="text",
+                    text=[sig_label],
+                    showlegend=False,
+                    name=sig_label,
+                    marker_line_width=1,
+                    marker_size=10,
+                    hovertemplate=hovertemplate,
+                ),
+                row=cat2num.ax_cfg["row"],
+                col=cat2num.ax_cfg["col"],
+            )
+
+            # Offset next line
+            yline -= dy * rel_y_offset
+
+        # adjust the y range to a reasonable size
+        fig = fig.update_yaxes(
+            range=[yline - dy * rel_y_offset, max(ys) + dy * rel_y_offset]
+        )
 
     return fig
 
@@ -412,24 +483,32 @@ def add_box_significance_indicator_legacy(
     ----------
     fig : go.Figure
         the figure to add the indicators to
+
     same_color_only: bool (True)
         only calculate significance between the same colors (legendgroups)
+
     xval_pairs: list[tuple] | None (None)
         specify pairs to consider for the significance calculation, if None,
         all combinations will be considered
+
     color_pairs: list[tuple] | None (None)
         specify colors to consider for the significance calculation, if None,
         all combinations will be considered.
         Only used if same_color_only == False.
+
     sig_func: Callable (scipy.stats.ttest_ind)
         the significance function to consider
+
     p_quantiles: tuple[float, float] ((0.05, 0.01))
         the quantiles to be considered for labeling with `*`, `**`, etc.
+
     x_offset_inc: float (0.05)
         basic offset between the legendgroups as this value cannot be retrieved
         from the traces...
+
     print_stats: bool (False)
         if true, print the statistics data frame
+
     plot_ns_results: bool (False)
         if true, also plot the non-significant indicators
 
@@ -448,6 +527,7 @@ def add_box_significance_indicator_legacy(
 
     # extend to single distributions (one for each x value)
     xmap = get_map_xcat_to_linspace(fig)
+
     sdists = pd.DataFrame(
         [
             {
@@ -579,6 +659,66 @@ def add_box_significance_indicator_legacy(
     return fig
 
 
+def plot_data_to_dataframe(
+    fig: go.Figure,
+) -> pd.DataFrame:
+    """Extract the data of the box/violin plots to a single data frame"""
+
+    dists = [
+        elm
+        for elm in fig.data
+        if isinstance(elm, _box.Box) or isinstance(elm, _violin.Violin)
+    ]
+
+    dfs = []
+    for dist in dists:
+        df = pd.DataFrame(
+            {
+                "x": dist.x,
+                "y": dist.y,
+                "offsetgroup": dist.offsetgroup,
+                "legendgroup": dist.legendgroup,
+                "name": dist.name,
+                "yaxis": dist.yaxis,
+                "xaxis": dist.xaxis,
+            }
+        )
+        dfs.append(df)
+
+    return pd.concat(dfs, axis=0).reset_index(drop=True)
+
+
+def group_paired_tests(
+    df: pd.DataFrame,
+    group_cols: list[str],
+    value_col: str,
+    test_func: Callable = stats.ttest_ind,
+    test_func_kwargs: Optional[dict] = {"equal_var": False},
+) -> pd.DataFrame:
+    grps = df.groupby(group_cols)
+
+    data = []
+    for (gk1, dg1), (gk2, dg2) in combinations(grps, 2):
+        test = test_func(dg1[value_col], dg2[value_col], **test_func_kwargs)  # type: ignore
+
+        dr = pd.DataFrame(
+            {
+                **dict(zip([g + "_g1" for g in group_cols], gk1)),
+                **dict(zip([g + "_g2" for g in group_cols], gk2)),
+                "stat": test.statistic,
+                "pval": test.pvalue,
+                "dof": test.df,
+                "n1": len(dg1),
+                "n2": len(dg2),
+            },
+            index=[0],
+        )
+
+        data.append(dr)
+
+    return pd.concat(data)
+
+
 def get_num_x_pos(fig: go.Figure, xkey: str) -> float:
     """Get the numeric position for an x value on a categorical x axis"""
     xmap = get_map_xcat_to_linspace(fig)
@@ -603,82 +743,148 @@ def get_x_offset(fig: go.Figure, cg_key: str, x_offset_inc: float) -> float:
         return offsetmap[cg_key]
 
 
-def compute_stats(
-    sdists: pd.DataFrame,
-    xval_pairs: list[tuple] | None,
-    color_pairs: list[tuple],
-    stat_func: Callable,
-) -> pd.DataFrame:
+# def compute_stats(
+#     sdists: pd.DataFrame,
+#     xval_pairs: list[tuple] | None,
+#     color_pairs: list[tuple],
+#     stat_func: Callable,
+# ) -> pd.DataFrame:
+#     """
+#     Compute a data frame storing the test statistic for
+#     color1, color2, x1, x2 comparison tuples
+#     """
+#     recs = []
+#     for cp1, cp2 in color_pairs:
+#         if xval_pairs is not None:
+#             wxval_pairs = xval_pairs
+#         else:
+#             # Build unique pairs accross the color groups
+#             if cp1 == cp2:
+#                 uxvals = sdists[(sdists.lgrp == cp1)].xlabel.unique()
+#                 wxval_pairs = [
+#                     (x1, x2) for i, x1 in enumerate(uxvals) for x2 in uxvals[i + 1 :]
+#                 ]
+#             else:
+#                 # consider all unique
+#                 wxval_pairs = [
+#                     (x1, x2)
+#                     for x1 in sdists[(sdists.lgrp == cp1)].xlabel.unique()
+#                     for x2 in sdists[(sdists.lgrp == cp2)].xlabel.unique()
+#                 ]
+#
+#         for x1, x2 in wxval_pairs:
+#             if x1 != x2 or cp1 != cp2:
+#                 dist1 = sdists[(sdists.lgrp == cp1) & (sdists.xlabel == x1)]
+#                 dist2 = sdists[(sdists.lgrp == cp2) & (sdists.xlabel == x2)]
+#
+#                 if True:  # dist1.shape[0] >= 1 and dist2.shape[0] >= 1:
+#                     # print(f" >> {dist1=}, {dist2=}, {x1=}, {x2=}, {cp1=}, "
+#                     # f"{cp2=}")
+#                     recs.append(
+#                         {
+#                             "color1": cp1,
+#                             "color2": cp2,
+#                             "x1": x1,
+#                             "x2": x2,
+#                             "stat": stat_func(dist1.y.iloc[0], dist2.y.iloc[0]),
+#                             "n1": len(dist1.y.iloc[0]),
+#                             "n2": len(dist2.y.iloc[0]),
+#                         }
+#                     )
+#
+#     return pd.DataFrame(recs)
+
+
+def make_xaxis_numeric(
+    fig: go.Figure, cat2num: Optional[list[Cat2Nums]] = None
+) -> tuple[go.Figure, list[Cat2Nums]]:
     """
-    Compute a data frame storing the test statistic for
-    color1, color2, x1, x2 comparison tuples
+    Make all x-axes numeric for all subplots. Doing so separately allows to
+    capture heterogeneous x-axes categories, which might result from separate
+    creation with `make_subplots` -> fig.add_trace...
+
+    Numeric axes are required to properly draw the lines for the sign.
+
     """
-    recs = []
-    for cp1, cp2 in color_pairs:
-        if xval_pairs is not None:
-            wxval_pairs = xval_pairs
-        else:
-            # Build unique pairs accross the color groups
-            if cp1 == cp2:
-                uxvals = sdists[(sdists.lgrp == cp1)].xlabel.unique()
-                wxval_pairs = [
-                    (x1, x2) for i, x1 in enumerate(uxvals) for x2 in uxvals[i + 1 :]
-                ]
-            else:
-                # consider all unique
-                wxval_pairs = [
-                    (x1, x2)
-                    for x1 in sdists[(sdists.lgrp == cp1)].xlabel.unique()
-                    for x2 in sdists[(sdists.lgrp == cp2)].xlabel.unique()
-                ]
 
-        for x1, x2 in wxval_pairs:
-            if x1 != x2 or cp1 != cp2:
-                dist1 = sdists[(sdists.lgrp == cp1) & (sdists.xlabel == x1)]
-                dist2 = sdists[(sdists.lgrp == cp2) & (sdists.xlabel == x2)]
+    ax_tuples = get_subplot_axis(fig)
 
-                if True:  # dist1.shape[0] >= 1 and dist2.shape[0] >= 1:
-                    # print(f" >> {dist1=}, {dist2=}, {x1=}, {x2=}, {cp1=}, "
-                    # f"{cp2=}")
-                    recs.append(
-                        {
-                            "color1": cp1,
-                            "color2": cp2,
-                            "x1": x1,
-                            "x2": x2,
-                            "stat": stat_func(dist1.y.iloc[0], dist2.y.iloc[0]),
-                            "n1": len(dist1.y.iloc[0]),
-                            "n2": len(dist2.y.iloc[0]),
-                        }
-                    )
+    cat2num = [] if cat2num is None else cat2num
 
-    return pd.DataFrame(recs)
+    for ax_cfg in ax_tuples:
+        xax = fig.layout[ax_cfg["xaxis_label"]]
 
+        if xax.type != "linear":
 
-def make_xaxis_numeric(fig: go.Figure) -> go.Figure:
-    xmap = get_map_xcat_to_linspace(fig)
-    # replace x for each trace
-    for trc in fig.data:
-        trc.x = np.asarray([xmap[x] for x in trc.x])
+            # create a map for values
+            xvals = []
+            offset_grs = []
+            for tr in fig.select_traces(row=ax_cfg["row"], col=ax_cfg["col"]):
+                xvals.append(tr.x)
+                offset_grs.append([tr.offsetgroup])
 
-    # make axis labels reflect the categories again
-    fig.update_layout(
-        xaxis=dict(
-            tickmode="array",
-            tickvals=list(xmap.values()),
-            ticktext=list(xmap.keys()),
-        )
-    )
+            uxvals = np.unique(np.hstack(xvals))
+            uoffsets = np.unique(np.hstack(offset_grs))
 
-    return fig
+            x_cat_map = dict(zip(uxvals, range(len(uxvals))))
+
+            # +2 to exclude left and right boundary
+            offsets = np.linspace(-0.5, 0.5, len(uoffsets) + 2)[1:-1]
+            offset_cat_map = dict(zip(uoffsets, offsets))
+
+            for tr in fig.select_traces(row=ax_cfg["row"], col=ax_cfg["col"]):
+                tr.x = [x_cat_map[x] + offset_cat_map[tr.offsetgroup] for x in tr.x]
+                if isinstance(tr, _box.Box):
+                    tr.width = 0.8 / (len(uoffsets) + 2)
+
+            fig = fig.update_xaxes(
+                type="linear",
+                range=[-0.5, len(uxvals) - 0.5],
+                tickvals=list(x_cat_map.values()),
+                ticktext=list(x_cat_map.keys()),
+                row=ax_cfg["row"],
+                col=ax_cfg["col"],
+            )
+            cat2num.append(
+                Cat2Nums(
+                    ax_cfg=ax_cfg, x_cat_map=x_cat_map, offset_cat_map=offset_cat_map
+                )
+            )
+
+    return fig, cat2num
 
 
-def get_map_xcat_to_linspace(fig: go.Figure, xmin: int = 0, xmax: int = 1) -> dict:
-    xgrps = list(
-        dict.fromkeys([u for trc in fig.data for u in np.unique(trc.x) if "x" in trc])
-    )
-    xpos = np.linspace(0, 1, len(xgrps))
-    return {k: v for k, v in zip(xgrps, xpos)}
+def get_subplot_axis(fig: go.Figure) -> list[dict]:
+    """Get the tuples of axis names for each subplot"""
+
+    # -> not a subplot return simple
+    if fig._grid_ref is None:
+        return [
+            {
+                "xaxis_label": "xaxis",
+                "yaxis_label": "yaxis",
+                "xaxis_anchor": "x",
+                "yaxis_anchor": "y",
+                "row": None,  # will allow selectors with row=None to work..
+                "col": None,
+            }
+        ]
+
+    ax_tuples = []
+    for ir, subplots_row in enumerate(fig._grid_ref):
+        for ic, suplot_ref in enumerate(subplots_row):
+            ax_tuples.append(
+                {
+                    "xaxis_label": suplot_ref[0].layout_keys[0],
+                    "yaxis_label": suplot_ref[0].layout_keys[1],
+                    "xaxis_anchor": suplot_ref[0].trace_kwargs["xaxis"],
+                    "yaxis_anchor": suplot_ref[0].trace_kwargs["yaxis"],
+                    "row": ir + 1,
+                    "col": ic + 1,
+                }
+            )
+
+    return ax_tuples
 
 
 # Cluster permutation results to a plotly plot
@@ -869,48 +1075,53 @@ if __name__ == "__main__":
 
     df["label"] = np.random.choice(["aa", "bb", "cc"], 200)
     df["color"] = np.random.choice(["xx", "yy", "zz"], 200)
-    df.loc[df.color == "xx", "a"] += 200
+    df["cat"] = np.random.choice(["rr", "ee"], 200)
+    df.loc[df.color == "xx", "a"] += 20
 
-    fig = px.box(df, x="label", y="a", color="color")
-    fig = add_box_significance_indicator(fig, x_offset_inc=0.12)
+    fig = px.box(df, x="label", y="a", color="color", facet_col="cat")
+    fig = add_box_significance_indicator(fig, only_significant=False)
     fig.show()
 
-    fig = px.box(df, x="label", y="a", color="color")
+    fig = px.box(
+        df,
+        x="label",
+        y="a",
+        color="color",
+        facet_col="cat",
+    )
     fig = add_box_significance_indicator(
         fig,
-        x_offset_inc=0.12,
-        same_color_only=False,
+        same_legendgroup_only=False,
         color_pairs=[("xx", "xx")],
+        only_significant=False,
     )
     fig.show()
 
     fig = px.box(df, x="label", y="a", color="color")
     fig = add_box_significance_indicator(
         fig,
-        x_offset_inc=0.12,
-        same_color_only=False,
+        same_legendgroup_only=False,
         color_pairs=[("xx", "zz")],
     )
     fig.show()
 
     fig = px.box(df, x="label", y="a", color="color")
-    fig = add_box_significance_indicator(fig, x_offset_inc=0.12, same_color_only=False)
+    fig = add_box_significance_indicator(fig, same_legendgroup_only=False)
     fig.show()
 
     fig = px.box(df, x="label", y="a", color="color")
     fig = add_box_significance_indicator(
         fig,
-        x_offset_inc=0.12,
-        same_color_only=False,
+        same_legendgroup_only=False,
         xval_pairs=[("aa", "aa"), ("aa", "cc")],
+        only_significant=False,
     )
     fig.show()
 
     fig = px.box(df, x="label", y="a", color="color")
     fig = add_box_significance_indicator(
         fig,
-        x_offset_inc=0.12,
-        same_color_only=False,
+        same_legendgroup_only=False,
         color_pairs=[("xx", "zz"), ("xx", "yy")],
         xval_pairs=[("aa", "aa"), ("aa", "cc")],
     )
