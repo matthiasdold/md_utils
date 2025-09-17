@@ -1056,7 +1056,7 @@ def plot_residuals(
     if len(res.shape) == 1:
         res = res.reshape(-1, 1)
 
-    xvals = x or np.arange(len(ytrue))
+    xvals = x if x is not None else np.arange(len(ytrue))
     feature_names = feature_names or [f"x{i}" for i in range(res.shape[1])]
 
     df = pd.DataFrame(res, columns=[f"resid_{f}" for f in feature_names])

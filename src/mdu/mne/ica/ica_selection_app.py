@@ -17,8 +17,8 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 from tqdm import tqdm
 
-from mdu.plotly.mne.ica.ica_utils.shared import (attach_callbacks,
-                                                 create_ica_plot_overlay)
+from mdu.mne.ica.ica_utils.shared import (attach_callbacks,
+                                          create_ica_plot_overlay)
 from mdu.plotly.mne_plotting import plot_topo, plot_variances
 from mdu.plotly.mne_plotting_utils.epoch_image import plot_epo_image
 from mdu.plotly.mne_plotting_utils.psd import plot_epo_psd
