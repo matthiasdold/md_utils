@@ -221,7 +221,7 @@ def create_layout_and_figures(
 
     """
 
-    df = epo.metadata
+    df = epo.metadata.loc[epo.selection].reset_index(drop=True)
     ica_epos = ica.get_sources(epo)
     nmax = ica.n_components if nmax < 0 else nmax
 

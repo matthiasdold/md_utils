@@ -1,29 +1,29 @@
 import logging
 import logging.config
 
-default_config = {
-    "version": 1,
-    "formatters": {
-        "colored": {
-            "()": "colorlog.ColoredFormatter",
-            "format": "%(log_color)s%(asctime)s - %(levelname)-8s - %(name)-10s:  %(reset)s %(white)s%(message)s",
-        }
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "colored",
-        },
-    },
-    "root": {
-        "handlers": ["console"],
-    },
-}
-
-# overwriting defaults
-colors = {"DEBUG": "cyan"}
-
-logging.config.dictConfig(default_config)
+# default_config = {
+#     "version": 1,
+#     "formatters": {
+#         "colored": {
+#             "()": "colorlog.ColoredFormatter",
+#             "format": "%(log_color)s%(asctime)s - %(levelname)-8s - %(name)-10s:  %(reset)s %(white)s%(message)s",
+#         }
+#     },
+#     "handlers": {
+#         "console": {
+#             "class": "logging.StreamHandler",
+#             "formatter": "colored",
+#         },
+#     },
+#     "root": {
+#         "handlers": ["console"],
+#     },
+# }
+#
+# # overwriting defaults
+# colors = {"DEBUG": "cyan"}
+#
+# logging.config.dictConfig(default_config)
 
 
 # have this as a simple wrapper to ensure the updated config is used
@@ -33,10 +33,10 @@ def get_logger(
     logger = logging.getLogger(name)
     root_logger = logging.getLogger()
 
-    # change colors for all stream handlers
-    for hdl in root_logger.handlers:
-        if isinstance(hdl, logging.StreamHandler):
-            hdl.formatter.log_colors.update(colors)
+    # # change colors for all stream handlers
+    # for hdl in root_logger.handlers:
+    #     if isinstance(hdl, logging.StreamHandler):
+    #         hdl.formatter.log_colors.update(colors)
 
     logger.propagate = propagate
 
