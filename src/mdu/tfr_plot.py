@@ -15,6 +15,27 @@ from mdu.data_io.mne import load_fifraw_data
 
 
 def load_raw(file: Path) -> mne.io.Raw:
+    """
+    Load raw electrophysiology data from various file formats.
+
+    Supports loading data from .mat (FieldTrip/AO), .vhdr (BrainVision),
+    and .fif (MNE) file formats.
+
+    Parameters
+    ----------
+    file : Path
+        Path to the raw data file. Supported extensions: .mat, .vhdr, .fif.
+
+    Returns
+    -------
+    mne.io.Raw
+        MNE Raw object containing the loaded electrophysiology data.
+
+    Raises
+    ------
+    ValueError
+        If the file extension is not supported.
+    """
     if file.suffix == ".mat":
         return load_ao_data(file)
     elif file.suffix == ".vhdr":
@@ -28,6 +49,30 @@ def load_raw(file: Path) -> mne.io.Raw:
 def calc_tfr(
     raw: mne.io.Raw, freqs: np.ndarray, n_cycles: np.ndarray, decim: int = 100
 ) -> np.ndarray:
+    """
+    Calculate time-frequency representation using multitaper method.
+
+    Computes the time-frequency power spectrum using MNE's multitaper
+    implementation with a time-bandwidth product of 4.
+
+    Parameters
+    ----------
+    raw : mne.io.Raw
+        MNE Raw object containing the electrophysiology data.
+    freqs : np.ndarray
+        Array of frequencies at which to compute the power spectrum.
+    n_cycles : np.ndarray
+        Number of cycles to use for each frequency in the wavelet decomposition.
+    decim : int, optional
+        Decimation factor for the time axis to reduce computational load.
+        Default is 100.
+
+    Returns
+    -------
+    np.ndarray
+        Time-frequency power array with shape (n_channels, n_freqs, n_times).
+        Power values are in squared units of the input data.
+    """
     # tfr calculation
     time_bandwidth = 4
     rd = raw.copy().get_data()
@@ -48,6 +93,29 @@ def calc_tfr(
 
 
 def generate_images(data: np.ndarray, vmin: float, vmax: float) -> list[Image]:
+    """
+    Generate PIL images from time-frequency power data for visualization.
+
+    Converts power values to decibels, applies color mapping using the jet
+    colormap, and creates PIL Image objects for each channel.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Time-frequency power array with shape (n_freqs, n_channels, n_times).
+        Power values should be in squared units.
+    vmin : float
+        Minimum value (in dB) for color scale normalization.
+    vmax : float
+        Maximum value (in dB) for color scale normalization.
+
+    Returns
+    -------
+    list[Image]
+        List of PIL Image objects, one per channel, with colors representing
+        power in dB. Images are oriented with frequency on the y-axis
+        (reversed, high frequencies at top) and time on the x-axis.
+    """
     db_data = 10 * np.log10(data * 10**12)
     color_norm = Normalize(vmin=vmin, vmax=vmax)
     scalar_map = cm.ScalarMappable(norm=color_norm, cmap="jet")
@@ -69,8 +137,36 @@ def plot_tfr(
     decim: int,
 ):
     """
-    By default the plots are created as png images which are used as background
-    in the plotly plots
+    Create interactive Plotly visualization of time-frequency representation.
+
+    Generates a multi-subplot figure with one subplot per channel, displaying
+    time-frequency power spectra as background images with proper axis labels
+    and a shared colorbar.
+
+    Parameters
+    ----------
+    tfr_array : np.ndarray
+        Time-frequency power array with shape (n_freqs, n_channels, n_times).
+    freqs : list[float] or np.ndarray
+        Array of frequencies corresponding to the first dimension of tfr_array.
+    raw : mne.io.Raw
+        MNE Raw object used to extract channel names and timing information.
+    vmin : None or float
+        Minimum value (in dB) for the color scale. If None, uses data minimum.
+    vmax : None or float
+        Maximum value (in dB) for the color scale. If None, uses data maximum.
+    ncolwrap : int
+        Maximum number of columns in the subplot grid. Determines layout
+        with subplots arranged in rows and columns.
+    decim : int
+        Decimation factor that was used in the TFR calculation. Used to
+        correctly compute time axis values.
+
+    Returns
+    -------
+    go.Figure
+        Plotly Figure object containing the interactive time-frequency plots
+        with background images, axis labels, and colorbar.
     """
     images = generate_images(
         tfr_array.transpose(1, 0, 2), vmin=vmin, vmax=vmax

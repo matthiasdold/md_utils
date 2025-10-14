@@ -133,6 +133,20 @@ def residuals_analysis_plot(
 
 
 def plot_acf(x: np.ndarray, plot_lag_zero: bool = False) -> go.Figure:
+    """Plot the autocorrelation function of a time series.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Time series data to compute ACF for.
+    plot_lag_zero : bool, default=False
+        If True, include lag 0 in the plot.
+
+    Returns
+    -------
+    go.Figure
+        Plotly figure with ACF plot and confidence bounds.
+    """
 
     acf = np.correlate(x, x, mode="full")
 

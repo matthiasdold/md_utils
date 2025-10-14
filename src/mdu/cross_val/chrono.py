@@ -9,21 +9,22 @@ class ChronoGroupsSplit:
             print(f"Received kwargs for {k=} which will not be used")
 
     def split(self, X, y, groups):
-        """
-        Return the indices of all splits of the data in X and y
+        """Return the indices of all splits of the data in X and y.
+
         Parameters
         ----------
-        X : np.ndarray (nsamples, nfeatures)
-            the data array with the sample dimension first
-        y : np.ndarray (nsamples, )
-            the labels vector
-        groups : np.ndarray (nsamples, )
-            a grouping vector matching the labels. This will be considered
-            to keep groups constant within each fold
+        X : np.ndarray, shape (nsamples, nfeatures)
+            The data array with the sample dimension first.
+        y : np.ndarray, shape (nsamples,)
+            The labels vector.
+        groups : np.ndarray, shape (nsamples,)
+            A grouping vector matching the labels. This will be considered
+            to keep groups constant within each fold.
+
         Returns
         -------
-        splits : list[tuple[np.ndarray, np.ndarray]]
-            a list of splits of (ix_train, ix_test) tuples to loop over
+        splits : list of tuple of np.ndarray
+            A list of splits as (ix_train, ix_test) tuples to loop over.
         """
 
         y = np.asarray(y)

@@ -65,6 +65,25 @@ def create_plotly_topoplot(
 
 # ---------- no longer use the matplotlib hack around
 def get_radius(pos: np.ndarray, scale_range: float = 1.2) -> float:
+    """Calculate the radius for the topoplot head circle.
+
+    Computes the radius based on the maximum range of the sensor positions
+    in either x or y direction, scaled by a factor to provide appropriate
+    spacing around the sensors.
+
+    Parameters
+    ----------
+    pos : np.ndarray
+        Array of shape (n_channels, 2) containing the 2D positions of sensors.
+    scale_range : float, optional
+        Scaling factor to apply to the computed range. Default is 1.2.
+        Higher values create more space around the sensors.
+
+    Returns
+    -------
+    float
+        The computed radius for the head circle.
+    """
     return (
         max(
             pos[:, 0].max() - pos[:, 0].min(),
@@ -76,7 +95,24 @@ def get_radius(pos: np.ndarray, scale_range: float = 1.2) -> float:
 
 
 def get_origin(pos: np.ndarray, ch_names: list[str]) -> np.ndarray:
-    """Use Cz coordinate of present, else chose (0, 0)"""
+    """Determine the origin point for the topoplot head circle.
+
+    Uses the Cz electrode position as the origin if present in the channel
+    names, otherwise defaults to the coordinate (0, 0). The Cz electrode
+    is typically located at the center of the head in standard EEG layouts.
+
+    Parameters
+    ----------
+    pos : np.ndarray
+        Array of shape (n_channels, 2) containing the 2D positions of sensors.
+    ch_names : list[str]
+        List of channel names corresponding to the positions in pos.
+
+    Returns
+    -------
+    np.ndarray
+        Array of shape (2,) containing the x and y coordinates of the origin.
+    """
     if "Cz" in ch_names:
         assert len(ch_names) == len(pos)
         origin = pos[ch_names.index("Cz")]
@@ -97,6 +133,42 @@ def plot_contour_heatmap(
     show: bool = False,
     contour_kwargs: dict = {"colorscale": "Viridis"},
 ) -> go.FigureWidget:
+    """Create a 2D interpolated contour heatmap for topoplot visualization.
+
+    Uses Clough-Tocher 2D interpolation to create a smooth contour plot from
+    discrete sensor values. Grid points that are too far from any sensor
+    (determined by blank_scaling) are masked out to avoid extrapolation artifacts.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        Plotly figure object to add the contour plot to.
+    data : np.ndarray
+        Array of shape (n_channels,) containing the data values for each sensor.
+    inst : mne.io.Raw | mne.Epochs | mne.Evoked
+        MNE instance containing channel information.
+    pos : np.ndarray
+        Array of shape (n_channels, 2) containing the 2D positions of sensors.
+    origin : np.ndarray, optional
+        Array of shape (2,) specifying the x and y coordinates of the origin.
+        Default is [0, 0].
+    radius : float, optional
+        Radius of the head circle. Default is 1.
+    blank_scaling : float, optional
+        Fraction of radius used to determine maximum distance from sensors.
+        Grid points farther than radius * blank_scaling from all sensors
+        are masked. Default is 0.2.
+    show : bool, optional
+        If True, display the figure immediately. Default is False.
+    contour_kwargs : dict, optional
+        Additional keyword arguments to pass to the contour plot.
+        Default is {"colorscale": "Viridis"}.
+
+    Returns
+    -------
+    go.FigureWidget
+        Updated figure widget with the contour heatmap added.
+    """
     # 2D interpolation
     blank_scaling = 0.2
     fig = go.Figure()
@@ -146,10 +218,33 @@ def plot_sensors_at_topo_pos(
     plot_outlines: bool = True,
     pos: np.ndarray = None,
 ) -> go.FigureWidget:
-    """
-    Plot the sensors at the topoplot positions given a mne.instances
-    Note: the _find_topomap_coords projects to a 2d sphere instead of just
-          using the x,y coordinates of a 3d vector
+    """Plot sensor markers at their topoplot positions with channel labels.
+
+    Adds scatter plot markers for each sensor at their 2D projected positions.
+    If positions are not provided, they are computed using MNE's topomap
+    coordinate finder, which projects sensor locations onto a 2D sphere
+    rather than simply using x,y coordinates from 3D vectors.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        Plotly figure object to add the sensor markers to.
+    inst : mne.io.Raw | mne.Epochs | mne.Evoked
+        MNE instance containing channel information and metadata.
+    show : bool, optional
+        If True, display the figure immediately. Default is False.
+    plot_outlines : bool, optional
+        Parameter for future use to control plotting of sensor outlines.
+        Currently not implemented. Default is True.
+    pos : np.ndarray, optional
+        Array of shape (n_channels, 2) containing the 2D positions of sensors.
+        If None, positions are computed from inst using MNE's topomap
+        coordinate finder. Default is None.
+
+    Returns
+    -------
+    go.FigureWidget
+        Updated figure widget with sensor markers added.
     """
 
     if pos is None:
@@ -185,7 +280,36 @@ def plot_head_sphere_nose_and_ears(
     radius: float = None,
     origin: np.ndarray = None,
 ) -> go.Figure:
-    """Plot a sphere around Cz if present in the ch_names, else around (0, 0)"""
+    """Add head outline, nose, and ears to the topoplot figure.
+
+    Draws a circular head outline centered at the origin (Cz position if available,
+    otherwise (0, 0)), along with nose and ear features to create a complete
+    head schematic for EEG topographic plots.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        Plotly figure object to add the head features to.
+    pos : np.ndarray
+        Array of shape (n_channels, 2) containing the 2D positions of sensors.
+        Used to compute radius if not provided.
+    ch_names : list[str]
+        List of channel names. Used to determine origin position if not provided.
+    scale_range : float, optional
+        Scaling factor for computing the radius if radius is not provided.
+        Default is 1.20.
+    radius : float, optional
+        Radius of the head circle. If None, computed from pos using scale_range.
+        Default is None.
+    origin : np.ndarray, optional
+        Array of shape (2,) specifying the x and y coordinates of the origin.
+        If None, computed from pos and ch_names. Default is None.
+
+    Returns
+    -------
+    go.Figure
+        Updated figure with head outline, nose, and ears added.
+    """
     if origin is None:
         origin = get_origin(pos, ch_names)
     if radius is None:
@@ -213,6 +337,26 @@ def plot_head_sphere_nose_and_ears(
 
 
 def plot_nose(fig: go.Figure, r: float, origin: np.ndarray) -> go.Figure:
+    """Add a nose feature to the topoplot head outline.
+
+    Draws a triangular nose shape at the top of the head circle. The nose
+    extends slightly beyond the circle radius and has a width determined
+    by a fixed angle.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        Plotly figure object to add the nose feature to.
+    r : float
+        Radius of the head circle.
+    origin : np.ndarray
+        Array of shape (2,) specifying the x and y coordinates of the origin.
+
+    Returns
+    -------
+    go.Figure
+        Updated figure with nose feature added.
+    """
     dm = r * 0.1  # distance from circle in middle
     ddeg = 5  # width of nose in degree
 
@@ -235,6 +379,26 @@ def plot_nose(fig: go.Figure, r: float, origin: np.ndarray) -> go.Figure:
 
 
 def plot_ears(fig: go.Figure, r: float, origin: np.ndarray) -> go.Figure:
+    """Add ear features to the topoplot head outline.
+
+    Draws left and right ear shapes on the sides of the head circle. The ear
+    coordinates are based on MNE's standard ear shape, scaled and translated
+    according to the head radius and origin.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        Plotly figure object to add the ear features to.
+    r : float
+        Radius of the head circle.
+    origin : np.ndarray
+        Array of shape (2,) specifying the x and y coordinates of the origin.
+
+    Returns
+    -------
+    go.Figure
+        Updated figure with left and right ear features added.
+    """
     # coordinates from mne, scaled and translated, should result in the same
     # ear shape
     ear_x = (

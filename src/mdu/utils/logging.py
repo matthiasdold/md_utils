@@ -30,6 +30,27 @@ import logging.config
 def get_logger(
     name: str, log_level: int = logging.DEBUG, propagate: bool = True
 ) -> logging.Logger:
+    """Get a configured logger instance.
+
+    Parameters
+    ----------
+    name : str
+        Name of the logger to retrieve or create.
+    log_level : int, default=logging.DEBUG
+        Logging level to set for the logger.
+    propagate : bool, default=True
+        If True, propagate log messages to the root logger.
+
+    Returns
+    -------
+    logging.Logger
+        Configured logger instance.
+
+    Notes
+    -----
+    If propagate is True and a non-empty name is provided, the logger will
+    not have its own handlers and will rely on the root logger's handlers.
+    """
     logger = logging.getLogger(name)
     root_logger = logging.getLogger()
 

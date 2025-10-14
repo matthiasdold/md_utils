@@ -36,6 +36,25 @@ from statsmodels.tools.tools import add_constant
 
 
 def prepare_subplots(shape: tuple, facet_col_wrap: int = 4) -> go.Figure:
+    """Prepare subplot grid for faceted plotting.
+
+    Creates a subplot grid based on the number of variables in the data shape,
+    wrapping columns according to the specified wrap parameter.
+
+    Parameters
+    ----------
+    shape : tuple
+        Shape of the data array, where shape[1] represents the number of
+        variables/columns to be plotted in separate subplots.
+    facet_col_wrap : int, optional
+        Maximum number of columns before wrapping to a new row, by default 4.
+
+    Returns
+    -------
+    go.Figure
+        Plotly figure object with an empty subplot grid initialized with the
+        appropriate number of rows and columns.
+    """
     ncols = min(shape[1], facet_col_wrap)
     nrows = int(np.ceil(shape[1] / ncols))
 
@@ -225,6 +244,26 @@ def pp_plot(
 
 
 def fwd_transform(x: np.ndarray, pp: sm.ProbPlot, input_type: str) -> np.ndarray:
+    """Transform input values forward to quantile space.
+
+    Converts percentile values to quantiles using the probability plot's
+    distribution. Returns values unchanged if already in quantile space.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Input values to transform, either in quantile or percentile space.
+    pp : sm.ProbPlot
+        Probability plot object containing the distribution used for transformation.
+    input_type : str
+        Type of input values: "quantiles" (no transformation needed) or
+        "percentiles" (requires transformation via ppf).
+
+    Returns
+    -------
+    np.ndarray
+        Transformed values in quantile space.
+    """
     if input_type == "quantiles":
         return x
     else:
@@ -232,6 +271,27 @@ def fwd_transform(x: np.ndarray, pp: sm.ProbPlot, input_type: str) -> np.ndarray
 
 
 def back_transform(x: np.ndarray, pp: sm.ProbPlot, input_type: str) -> np.ndarray:
+    """Transform input values back to original space.
+
+    Converts quantile values to percentiles using the probability plot's
+    distribution. Returns values unchanged if already in percentile space.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Input values to transform, either in quantile or percentile space.
+    pp : sm.ProbPlot
+        Probability plot object containing the distribution used for transformation.
+    input_type : str
+        Type of input values: "quantiles" (requires transformation via cdf) or
+        "percentiles" (no transformation needed).
+
+    Returns
+    -------
+    np.ndarray
+        Transformed values in the original input space (percentiles if input
+        was quantiles, unchanged if input was percentiles).
+    """
     if input_type == "quantiles":
         return x
     else:
@@ -249,6 +309,44 @@ def add_ci_and_line(
     input_type: Literal["quantiles", "percentiles"] = "quantiles",
     invert_axis: bool = False,
 ) -> go.Figure:
+    """Add confidence interval bands and regression line to probability plot.
+
+    Computes and adds an OLS regression line with confidence interval bands
+    to a probability plot. The confidence intervals account for the uncertainty
+    in the fitted distribution and are calculated using standard errors based
+    on the sample size and probability density.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        Plotly figure object to add the confidence intervals and line to.
+    pp : sm.ProbPlot
+        Probability plot object containing the distribution and fitted parameters.
+    x : np.ndarray
+        X-axis values (theoretical quantiles or percentiles).
+    y : np.ndarray
+        Y-axis values (sample quantiles, percentiles, or sorted data).
+    ci : float, optional
+        Confidence level for the confidence intervals, by default 0.95.
+    row : int | None, optional
+        Subplot row index for plotly subplots, by default None.
+    col : int | None, optional
+        Subplot column index for plotly subplots, by default None.
+    input_type : Literal["quantiles", "percentiles"], optional
+        Type of input values for transformation calculations, by default "quantiles".
+    invert_axis : bool, optional
+        Whether the x and y axes are inverted (x=data, y=theoretical), by default False.
+
+    Returns
+    -------
+    go.Figure
+        Updated figure object with regression line and confidence interval bands added.
+
+    Notes
+    -----
+    The confidence intervals are computed following the approach in pingouin.plotting.qqplot,
+    using the standard error based on probability points and the PDF of the distribution.
+    """
 
     # in the inverted scenario, we still fit from an x == theoretical quantiles
     # perspective
@@ -319,6 +417,30 @@ def add_ci_and_line(
 
 
 def get_axis_probs(n: int) -> np.ndarray:
+    """Generate probability values for axis tick marks on probability plots.
+
+    Creates an array of probability values suitable for tick marks on probability
+    plot axes. The spacing adapts based on sample size to provide appropriate
+    resolution for small and large datasets.
+
+    Parameters
+    ----------
+    n : int
+        Number of observations in the dataset.
+
+    Returns
+    -------
+    np.ndarray
+        Array of probability values (between 0 and 1) for use as axis tick positions.
+        For n < 50: includes probabilities at 1%, 2%, 5%, 10%-90% (by 10%), 95%, 98%, 99%.
+        For n >= 50: adds 0.1%, 0.2%, 0.5%, 99.5%, 99.8%, 99.9%.
+        For n >= 500: adds 0.01%, 0.02%, 0.05%, 99.95%, 99.98%, 99.99%.
+
+    Notes
+    -----
+    The function provides more granular probability values at the tails of the
+    distribution for larger sample sizes, allowing better visualization of extreme values.
+    """
 
     axis_probs = np.linspace(10, 90, 9, dtype=float)
     small = np.array([1.0, 2, 5])
@@ -392,34 +514,56 @@ def add_ref_line(
     row: int | None = None,
     col: int | None = None,
 ) -> go.Figure:
-    """Add reference line to the figure object
-    This is akin to statsmodels:
-        statsmodels.graphics.gofplots.qqline
+    """Add reference line to probability or quantile-quantile plot.
+
+    Adds a reference line to help assess how well the data follows the theoretical
+    distribution. Multiple line types are available, each providing different
+    insights into the fit quality. This function is analogous to statsmodels'
+    `statsmodels.graphics.gofplots.qqline`.
 
     Parameters
     ----------
     fig : go.Figure
-        the figure object to add the reference line to. This assumes that there
-        is only one scatter trace which contains the data we should fit to
+        Figure object to add the reference line to. Assumes scatter trace(s)
+        containing the data to fit are already present.
+    line_type : Literal["diag", "standardized", "regression", "quartiles"], optional
+        Type of reference line to add, by default "diag":
 
-    dist : Callable | None
-        the distribution object to use which requires .ppf() to be implemented.
-        Only relevant for `quartiles` line_type, by default None
-
-    line_type : Literal["diag", "standardize", "regression", "quartiles"]
-        the type of reference line to add. Standardized estimates STD
-        from data and adds a line according to the expected order statistics
-
-    row : int | None
-        the row index of the subplot
-
-    col : int | None
-        the column index of the subplot
+        - "diag": Diagonal line spanning the range of both axes
+        - "standardized": Line with slope = std(y) and intercept = mean(y),
+          representing expected order statistics
+        - "regression": OLS regression line fitted to the data points
+        - "quartiles": Line through the 25th and 75th percentile points
+    dist : Callable | None, optional
+        Distribution object with a `.ppf()` method for computing quantiles.
+        Required only for `line_type="quartiles"`, by default None.
+    line_kwargs : dict | None, optional
+        Additional keyword arguments to pass to the line scatter trace
+        (e.g., line color, dash style), by default None.
+    row : int | None, optional
+        Subplot row index for plotly subplots, by default None.
+    col : int | None, optional
+        Subplot column index for plotly subplots, by default None.
 
     Returns
     -------
     go.Figure
-        the figure object with the reference line added
+        Figure object with the reference line added.
+
+    Raises
+    ------
+    ValueError
+        If `line_type` is not one of the supported options.
+
+    Notes
+    -----
+    - The "diag" option creates a diagonal line (not necessarily 45 degrees)
+      that spans the full range of the data
+    - The "standardized" option is useful for assessing whether the data follows
+      the expected distribution shape
+    - The "regression" option provides an OLS fit that may differ from the
+      distribution's fitted parameters
+    - The "quartiles" option (also known as "q-q line") is robust to outliers
     """
 
     line_kwargs = line_kwargs or dict()
@@ -545,15 +689,34 @@ def add_ref_line(
 
 
 def create_subplot_axis_map(fig: go.Figure) -> tuple[dict, dict]:
-    """Create a mapping of subplot axis to rows and columns
+    """Create mappings from axis anchors to subplot row and column indices.
+
+    Generates two dictionaries that map axis anchor names (e.g., 'x', 'x2', 'y', 'y2')
+    to their corresponding subplot row and column positions. This is useful for
+    programmatically determining which subplot a trace belongs to based on its
+    axis references.
+
     Parameters
     ----------
     fig : go.Figure
-        the figure object to create the mapping for
+        Figure object with subplots created via `make_subplots`. Assumes that
+        axis domains have not been manually modified after subplot creation.
+
     Returns
     -------
     tuple[dict, dict]
-        two mapping dictionaries, one for rows and one for columns
+        A tuple of two dictionaries (rmap, cmap):
+
+        - rmap : dict
+            Maps x-axis anchor names to row indices (1-based)
+        - cmap : dict
+            Maps y-axis anchor names to column indices (1-based)
+
+    Notes
+    -----
+    This function assumes the figure was created using `make_subplots` and that
+    the axis domains have not been manually altered. It relies on the internal
+    subplot coordinate system to create the mappings.
     """
 
     # Axis are created in the make_subplots call -> we assume the domains
@@ -572,6 +735,30 @@ def create_subplot_axis_map(fig: go.Figure) -> tuple[dict, dict]:
 
 
 def test_against_reliability():
+    """Test and compare probability plots against the reliability library.
+
+    Generates probability plots using both the reliability library (matplotlib-based)
+    and this module's probplot function (plotly-based) for comparison and validation.
+    Creates plots for a normally distributed sample and demonstrates different axis
+    orientations.
+
+    Notes
+    -----
+    This is a testing/validation function that requires the `reliability` library
+    to be installed. It generates:
+
+    1. A reliability library probability plot with the true CDF overlaid
+    2. A standard probability plot using this module
+    3. An inverted-axis probability plot using this module
+
+    The function notes that the reliability library uses `a=0.3` for calculating
+    y positions (matching Minitab), while pingouin uses `a=0.5` for n>10, and
+    statsmodels defaults to `a=0` (modified here to 0.5).
+
+    Examples
+    --------
+    >>> test_against_reliability()  # Displays comparison plots
+    """
     import matplotlib.pyplot as plt
     from reliability.Distributions import Normal_Distribution
     from reliability.Probability_plotting import Normal_probability_plot

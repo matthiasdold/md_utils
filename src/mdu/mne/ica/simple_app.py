@@ -33,6 +33,18 @@ from mdu.mne.ica.ica_utils.shared import attach_callbacks
 
 
 def matplotlib_to_base64(fig: plt.Figure) -> str:
+    """Convert a matplotlib figure to a base64-encoded PNG string.
+
+    Parameters
+    ----------
+    fig : plt.Figure
+        The matplotlib figure to convert.
+
+    Returns
+    -------
+    str
+        Base64-encoded string representation of the figure as PNG.
+    """
     buf = io.BytesIO()
     fig.savefig(buf, format="png")
     buf.seek(0)
@@ -91,6 +103,16 @@ class SelectionApp:
         self.add_resampler_callback()
 
     def convert_fig_to_base64(self):
+        """Convert all ICA component property figures to base64-encoded data URIs.
+
+        This method converts the matplotlib figures stored in `self.figs` to
+        base64-encoded PNG strings with data URI prefixes, suitable for embedding
+        in HTML/Dash components. Results are stored in `self.figs_base64`.
+
+        Returns
+        -------
+        None
+        """
         self.figs_base64 = []
         for fig in tqdm(self.figs, desc="Converting figs to base64"):
             self.figs_base64.append(
@@ -98,9 +120,37 @@ class SelectionApp:
             )
 
     def run(self, **kwargs):
+        """Run the Dash application server.
+
+        This method starts the Dash web server to display the ICA component
+        selection interface.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Keyword arguments passed to `app.run_server()`. Common options include
+            `debug`, `port`, and `host`.
+
+        Returns
+        -------
+        None
+        """
         self.app.run_server(**kwargs)
 
     def create_layout(self):
+        """Create and set the Dash application layout.
+
+        Constructs the complete UI layout for the ICA component selection app,
+        including:
+        - Header with save button, channel dropdown, and selection bar
+        - Raw data overlay graph with resampler
+        - ICA overlay visualization area
+        - Scrollable component property figures with accept/reject radio buttons
+
+        Returns
+        -------
+        None
+        """
         layout = html.Div(
             id="selection-app",
             children=[
@@ -160,6 +210,22 @@ class SelectionApp:
         self.app.layout = layout
 
     def add_resampler_callback(self):
+        """Add Dash callback for the raw data overlay graph with resampling.
+
+        Registers a callback that updates the raw data overlay graph when the
+        selected channel or ICA component selections change. The graph displays
+        both the original raw data and the ICA-filtered data using FigureResampler
+        for efficient rendering of large time series.
+
+        The callback responds to:
+        - Changes in channel dropdown selection
+        - Changes in any component accept/reject radio buttons
+        - Layout changes (zoom/pan) in the graph
+
+        Returns
+        -------
+        None
+        """
         @self.app.callback(
             Output("graph_raw_overlay", "figure"),
             State("graph_raw_overlay", "relayoutData"),
@@ -204,7 +270,23 @@ class SelectionApp:
 
 
 def parse_relayout_data(layout: dict | None) -> dict:
-    """Just parse the x/y ranges"""
+    """Parse Plotly relayout data to extract axis range information.
+
+    Extracts x-axis and y-axis range values from Plotly's relayoutData callback
+    format and converts them to a format suitable for updating figure layout.
+
+    Parameters
+    ----------
+    layout : dict or None
+        The relayoutData dictionary from Plotly Dash callback containing keys like
+        'xaxis.range[0]', 'xaxis.range[1]', etc., or None if no layout data exists.
+
+    Returns
+    -------
+    dict
+        Dictionary with 'xaxis_range' and/or 'yaxis_range' keys containing
+        [min, max] lists, or empty dict if no range data found.
+    """
     if layout is None:
         return {}
 
@@ -225,6 +307,24 @@ def parse_relayout_data(layout: dict | None) -> dict:
 
 
 def create_figs(app: SelectionApp) -> list[html.Div]:
+    """Create Dash Div elements for all ICA component property figures.
+
+    Generates a list of HTML Div elements, each containing a radio button group
+    (accept/reject) and a Plotly graph displaying the base64-encoded ICA component
+    property figure. Rows are styled with alternating even/odd classes.
+
+    Parameters
+    ----------
+    app : SelectionApp
+        The SelectionApp instance containing the ICA model, base64-encoded figures,
+        and component exclusion list.
+
+    Returns
+    -------
+    list of html.Div
+        List of Dash Div components, one per ICA component, containing radio
+        buttons and embedded property figures.
+    """
     divs = []
     for i, fig in enumerate(app.figs_base64):
         row_type = "even" if i % 2 == 0 else "odd"
@@ -275,6 +375,20 @@ def create_figs(app: SelectionApp) -> list[html.Div]:
 
 
 def test_sum(x):
+    """Test function that prints the sum of input and returns a list.
+
+    This appears to be a utility or test function with minimal practical use.
+
+    Parameters
+    ----------
+    x : array-like
+        An iterable of numeric values to sum.
+
+    Returns
+    -------
+    list
+        A list containing the single string element "A".
+    """
     print(sum(x))
     a = [
         "A",

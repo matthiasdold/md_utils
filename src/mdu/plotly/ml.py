@@ -4,6 +4,22 @@ from sklearn import metrics
 
 
 def plot_roc_curve(y_true: np.ndarray, y_pred: np.ndarray) -> go.Figure:
+    """
+    Plot ROC (Receiver Operating Characteristic) curve with AUC.
+
+    Parameters
+    ----------
+    y_true : np.ndarray
+        True binary labels (0 or 1).
+    y_pred : np.ndarray
+        Predicted probabilities or decision function scores.
+
+    Returns
+    -------
+    go.Figure
+        Plotly figure object containing the ROC curve with diagonal reference
+        line and AUC annotation.
+    """
     fpr, tpr, ths = metrics.roc_curve(y_true, y_pred)
     auc = metrics.auc(fpr, tpr)
 

@@ -371,7 +371,6 @@ def add_box_significance_indicator(
     # Plotting
     # ----------------------------------------------------------------------
     for gk, dg in ds.groupby(["xaxis", "yaxis"]):
-
         # select the correct Cat2Nums wrapper according to the anchor string
         cat2num = (
             cat2nums[0]
@@ -695,6 +694,40 @@ def group_paired_tests(
     test_func: Callable = stats.ttest_ind,
     test_func_kwargs: Optional[dict] = {"equal_var": False},
 ) -> pd.DataFrame:
+    """
+    Perform pairwise statistical tests between all combinations of groups.
+
+    This function groups the data by specified columns and performs pairwise
+    statistical tests between all combinations of groups. It returns a DataFrame
+    containing test statistics, p-values, and group information for each comparison.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The input DataFrame containing the data to test
+    group_cols : list[str]
+        Column names to use for grouping the data. All combinations of unique
+        values in these columns will be compared pairwise
+    value_col : str
+        Column name containing the values to compare statistically
+    test_func : Callable, default=stats.ttest_ind
+        Statistical test function to use for comparisons. Must accept two arrays
+        and return an object with 'statistic', 'pvalue', and 'df' attributes
+    test_func_kwargs : dict or None, default={"equal_var": False}
+        Keyword arguments to pass to the test function
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing one row per pairwise comparison with columns:
+        - {group_col}_g1 : values from first group for each grouping column
+        - {group_col}_g2 : values from second group for each grouping column
+        - stat : test statistic value
+        - pval : p-value from the statistical test
+        - dof : degrees of freedom
+        - n1 : sample size of first group
+        - n2 : sample size of second group
+    """
     grps = df.groupby(group_cols)
 
     data = []
@@ -720,13 +753,54 @@ def group_paired_tests(
 
 
 def get_num_x_pos(fig: go.Figure, xkey: str) -> float:
-    """Get the numeric position for an x value on a categorical x axis"""
+    """
+    Get the numeric position for an x value on a categorical x axis.
+
+    This function maps a categorical x-axis value to its numeric position
+    in the figure's coordinate system.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        The plotly figure containing categorical x-axis data
+    xkey : str
+        The categorical x-axis value to map to a numeric position
+
+    Returns
+    -------
+    float
+        The numeric position corresponding to the categorical x value
+    """
     xmap = get_map_xcat_to_linspace(fig)
     return xmap[xkey]
 
 
 def get_x_offset(fig: go.Figure, cg_key: str, x_offset_inc: float) -> float:
-    """Compute the x axis offset for a given color group"""
+    """
+    Compute the x axis offset for a given color group.
+
+    When multiple box or violin plots are grouped at the same x position
+    (e.g., different colors), they need to be offset horizontally to avoid
+    overlapping. This function computes the appropriate offset for a given
+    offsetgroup based on the number of groups present.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        The plotly figure containing traces with offsetgroup attributes
+    cg_key : str
+        The offsetgroup key for which to compute the offset
+    x_offset_inc : float
+        The increment value used to space out multiple groups. This value
+        scales the spacing between groups
+
+    Returns
+    -------
+    float
+        The x-axis offset value for the specified color group. Returns 0 if
+        there are no groups or only one group. Otherwise returns a value
+        between -x_offset_inc and +x_offset_inc based on the group's position
+    """
 
     # via dict to preserver order
     cgrps = list(
@@ -799,12 +873,41 @@ def make_xaxis_numeric(
     fig: go.Figure, cat2num: Optional[list[Cat2Nums]] = None
 ) -> tuple[go.Figure, list[Cat2Nums]]:
     """
-    Make all x-axes numeric for all subplots. Doing so separately allows to
-    capture heterogeneous x-axes categories, which might result from separate
-    creation with `make_subplots` -> fig.add_trace...
+    Convert categorical x-axes to numeric for all subplots in a figure.
 
-    Numeric axes are required to properly draw the lines for the sign.
+    This function transforms categorical x-axes to numeric linear axes while
+    preserving the categorical labels as tick text. This conversion is necessary
+    for properly drawing significance indicator lines between categorical groups.
+    The function handles multiple subplots separately, allowing for heterogeneous
+    x-axis categories that may result from separate creation with make_subplots.
 
+    Parameters
+    ----------
+    fig : go.Figure
+        The plotly figure to modify. Can contain single plot or multiple subplots
+    cat2num : list[Cat2Nums] or None, default=None
+        Optional existing list of Cat2Nums objects to extend. If None, a new
+        list is created. Allows for idempotent transformations
+
+    Returns
+    -------
+    fig : go.Figure
+        The modified figure with numeric x-axes
+    cat2num : list[Cat2Nums]
+        List of Cat2Nums objects containing the transformation metadata for
+        each subplot, including:
+        - ax_cfg: axis configuration dict with subplot information
+        - x_cat_map: mapping from categorical values to numeric positions
+        - offset_cat_map: mapping from offsetgroups to offset values
+
+    Notes
+    -----
+    The function modifies the figure in-place and also returns it. For each
+    categorical x-axis found, it:
+    1. Creates a mapping from categorical values to numeric positions
+    2. Computes offsets for multiple groups at the same x position
+    3. Updates trace data to use numeric x values
+    4. Updates axis properties to show categorical labels at numeric positions
     """
 
     ax_tuples = get_subplot_axis(fig)
@@ -815,7 +918,6 @@ def make_xaxis_numeric(
         xax = fig.layout[ax_cfg["xaxis_label"]]
 
         if xax.type != "linear":
-
             # create a map for values
             xvals = []
             offset_grs = []
@@ -855,7 +957,41 @@ def make_xaxis_numeric(
 
 
 def get_subplot_axis(fig: go.Figure) -> list[dict]:
-    """Get the tuples of axis names for each subplot"""
+    """
+    Get axis configuration information for each subplot in a figure.
+
+    This function extracts axis naming and position information for all subplots
+    in a plotly figure. For figures without subplots, it returns a single
+    configuration dict with default axis names.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        The plotly figure to analyze. Can be a single plot or contain multiple
+        subplots created with make_subplots
+
+    Returns
+    -------
+    list[dict]
+        List of dictionaries, one per subplot, each containing:
+        - xaxis_label : str
+            The layout key for the x-axis (e.g., 'xaxis', 'xaxis2')
+        - yaxis_label : str
+            The layout key for the y-axis (e.g., 'yaxis', 'yaxis2')
+        - xaxis_anchor : str
+            The trace anchor name for the x-axis (e.g., 'x', 'x2')
+        - yaxis_anchor : str
+            The trace anchor name for the y-axis (e.g., 'y', 'y2')
+        - row : int or None
+            The row number (1-indexed) for subplots, None for single plots
+        - col : int or None
+            The column number (1-indexed) for subplots, None for single plots
+
+    Notes
+    -----
+    For single plots (no subplots), returns a list with one dict where row and
+    col are None. This allows trace selectors with row=None to work correctly.
+    """
 
     # -> not a subplot return simple
     if fig._grid_ref is None:
@@ -892,12 +1028,12 @@ def add_cluster_permut_sig_to_plotly(
     curves_a: np.ndarray,
     curves_b: np.ndarray,
     fig: go.Figure,
-    xaxes_vals: [None, list, np.ndarray] = None,  # noqa
-    row: [None, int] = None,
-    col: [None, int] = None,
+    xaxes_vals: None | list | np.ndarray = None,  # noqa
+    row: None | int = None,
+    col: None | int = None,
     pval: float = 0.05,
     nperm: int = 1024,
-    mode: str = "p_colorbar",
+    mode: str = "line",
     showlegend: bool = False,
 ) -> go.Figure:
     """Add a cluster permutation significance indicator to a plotly figure
@@ -924,6 +1060,8 @@ def add_cluster_permut_sig_to_plotly(
         how to plot the cluster test statistics, options are:
             'p_bg': a background if p < ptarget
             'spark': sparklines of the rvalue itself
+            'p_colorbar': a vertical colorbar indicating the pvalue if less than `pval`
+            'line': simple black line with "*" marked
     showlegend : bool
         whether to show the legend
 
@@ -939,12 +1077,10 @@ def add_cluster_permut_sig_to_plotly(
     dfd = n_observations - n_conditions  # degrees of freedom denominator
     thresh = stats.f.ppf(1 - pval, dfn=dfn, dfd=dfd)  # F distribution
 
-    print(
-        f"Calculating cluster permutation in F-stats with {thresh=} and" f" {nperm=}."
-    )
+    log.info(f"Calculating cluster permutation in F-stats with {thresh=} and {nperm=}.")
 
     # the last parameter should be relevant for the adjecency -> here time
-    fobs, clust, pclust, h0 = mne.stats.permutation_cluster_test(
+    fobs, clust_idx, pclust, h0 = mne.stats.permutation_cluster_test(
         [
             curves_a.reshape(*curves_a.shape, 1),
             curves_b.reshape(*curves_b.shape, 1),
@@ -953,68 +1089,379 @@ def add_cluster_permut_sig_to_plotly(
         n_permutations=nperm,
     )
 
-    time = xaxes_vals if xaxes_vals is not None else np.arange(curves_a.shape[1])
+    time = (
+        np.asarray(xaxes_vals)
+        if xaxes_vals is not None
+        else np.arange(curves_a.shape[1])
+    )
 
     # dbfig = debug_plot(curves_a, curves_b, fobs, h0, thresh)
     # dbfig.savefig("dbfig_test.png")
     if not any([p < pval for p in pclust]):
         log.info("No significant clusters found!")
 
-    if mode == "spark":
-        if row is None or col is None:
-            print(
-                "Plotting the F-values as spark lines is only possible if "
-                f"{row=} and {col=} are defined"
-            )
-        else:
-            fig.add_trace(
-                go.Scatter(
-                    x=time,
-                    y=fobs[:, 0],
-                    name="F-values",
-                    mode="lines",
-                    showlegend=showlegend,
-                ),
-                row=row,
-                col=col,
-            )
+    if mode == "line":
+        fig = fig_add_clust_line(
+            fig=fig,
+            clust_idx=clust_idx,
+            pclust=pclust,
+            pval=pval,
+            time=time,
+            row=row,
+            col=col,
+        )
 
-            fig.add_trace(
-                go.Scatter(
-                    x=[time[0], time[-1]],
-                    y=[thresh, thresh],
-                    name="F-val thresh",
-                    mode="lines",
-                    line_color="#338833",
-                    line_dash="dash",
-                    showlegend=showlegend,
-                ),
-                row=row,
-                col=col,
-            )
+    elif mode == "spark":
+        fig = fig_add_clust_spark(
+            fig=fig,
+            fobs=fobs,
+            thresh=float(thresh),
+            time=time,
+            row=row,
+            col=col,
+        )
+
+    elif mode == "p_bg":
+        fig = fig_add_clust_colorbg(
+            fig=fig,
+            clust_idx=clust_idx,
+            pclust=pclust,
+            pval=pval,
+            time=time,
+            row=row,
+            col=col,
+        )
 
     elif mode == "p_colorbar":
-        # color the background
-        for cl, p in zip(clust, pclust):
-            x = time[cl[0][:]]
-            if p < pval:
-                log.debug(f"Adding significant values at {x[0]} to {x[-1]}")
-                fig.add_vrect(
-                    x0=x[0],
-                    x1=x[-1],
-                    line_width=1,
-                    line_color="#338833",
-                    fillcolor="#338833",
-                    name="",
-                    opacity=0.2,
-                    row=row,
-                    col=col,
-                )
-            else:
-                log.debug(f"Cluster not significant from {x[0]} to {x[-1]}")
+        fig = fig_add_clust_colorbar(
+            fig=fig,
+            clust_idx=clust_idx,
+            pclust=pclust,
+            pval=pval,
+            time=time,
+            row=row,
+            col=col,
+        )
 
     else:
-        raise ModeNotImplementedError(f"Unknown {mode=} for adding signific.")
+        raise ModeNotImplementedError(
+            f"Unknown {mode=} for adding significance indicators. Valid are: 'line', 'spark', 'p_bg', 'p_colorbar'"
+        )
+
+    return fig
+
+
+def fig_add_clust_spark(
+    fig: go.Figure,
+    fobs: np.ndarray,
+    thresh: float,
+    time: np.ndarray,
+    row: int | None = None,
+    col: int | None = None,
+) -> go.Figure:
+    """Add sparklines of F-values and threshold to the figure
+
+    Parameters
+    ----------
+    fig : go.Figure
+        the figure to add the sparklines to
+
+    fobs : np.ndarray
+        the observed F-values
+
+    thresh : float
+        the F-value threshold
+
+    time : np.ndarray
+        the time points
+
+    row : int | None
+        the row to add the sparklines to
+
+    col : int | None
+        the column to add the sparklines to
+
+    showlegend : bool
+        whether to show the legend
+
+    Returns
+    -------
+    go.Figure
+        the figure with the sparklines added
+    """
+    fig.add_trace(
+        go.Scatter(
+            x=time,
+            y=fobs[:, 0],
+            name="F-values",
+            mode="lines",
+        ),
+        row=row,
+        col=col,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=[time[0], time[-1]],
+            y=[thresh, thresh],
+            name="F-val thresh",
+            mode="lines",
+            line_color="#338833",
+            line_dash="dash",
+        ),
+        row=row,
+        col=col,
+    )
+
+    return fig
+
+
+def fig_add_clust_colorbg(
+    fig: go.Figure,
+    clust_idx: np.ndarray,
+    pclust: np.ndarray,
+    pval: float,
+    time: np.ndarray,
+    row: int | None = None,
+    col: int | None = None,
+) -> go.Figure:
+    """Add colored vertical rectangles for significant clusters
+
+    Parameters
+    ----------
+    fig : go.Figure
+        the figure to add the colored rectangles to
+
+    clust_idx : np.ndarray
+        the cluster indices
+
+    pclust : np.ndarray
+        the p-values for each cluster
+
+    pval : float
+        the p-value threshold for significance
+
+    time : np.ndarray
+        the time points
+
+    row : int | None
+        the row to add the rectangles to
+
+    col : int | None
+        the column to add the rectangles to
+
+    Returns
+    -------
+    go.Figure
+        the figure with the colored rectangles added
+    """
+    # color the background
+    for cl, p in zip(clust_idx, pclust):
+        x = time[cl[0][:]]
+        if p < pval:
+            log.debug(f"Adding significant values at {x[0]} to {x[-1]}")
+            fig.add_vrect(
+                x0=x[0],
+                x1=x[-1],
+                line_width=1,
+                line_color="#338833",
+                fillcolor="#338833",
+                name=f"cl_perm_{cl[0][0]}_{cl[0][-1]}",
+                opacity=0.2,
+                row=row,  # type: ignore
+                col=col,  # type: ignore
+            )
+        else:
+            log.debug(f"Cluster not significant from {x[0]} to {x[-1]}")
+
+    return fig
+
+
+def fig_add_clust_line(
+    fig: go.Figure,
+    clust_idx: np.ndarray,
+    pclust: np.ndarray,
+    time: np.ndarray,
+    pval: float = 0.05,
+    row: int | None = None,
+    col: int | None = None,
+) -> go.Figure:
+    """Add a line to the figure for each cluster
+
+    Parameters
+    ----------
+    fig : go.Figure
+        the figure to add the lines to
+
+    clust_idx : np.ndarray
+        the cluster indices
+
+    pclust : np.ndarray
+        the p-values for each cluster
+
+    time : np.ndarray
+        the time points
+
+    pval : float
+        the p-value threshold for significance
+
+    row : int | None
+        the row to add the lines to
+
+    col : int | None
+        the column to add the lines to
+
+    Returns
+    -------
+    go.Figure
+        the figure with the lines added
+    """
+    for cl, p in zip(clust_idx, pclust):
+        if p < pval:
+            x = time[cl[0][:]]
+
+            # if x is only a single sample create a line segment with the same width
+            # as the samples in time (xaxes values)
+            dt = np.diff(time).mean()
+            if len(x) == 1:
+                x = np.array([x[0] - dt / 2, x[0] + dt / 2])
+
+            fig.add_scatter(
+                x=x,
+                y=np.ones_like(x),  # change to the correct value outsides
+                mode="lines+text",
+                line_color="#333",
+                line_width=1,
+                name=f"cl_perm_{cl[0][0]}_{cl[0][-1]}",
+                row=row,
+                col=col,
+                text=[f"p={p:.3f}"] + [""] * (len(x) - 1),
+                textposition="top right",
+            )
+
+    return fig
+
+
+def fig_add_clust_colorbar(
+    fig: go.Figure,
+    clust_idx: np.ndarray,
+    pclust: np.ndarray,
+    pval: float,
+    time: np.ndarray,
+    row: int | None = None,
+    col: int | None = None,
+    y_range: tuple[float, float] = (0.9, 1.1),
+) -> go.Figure:
+    """Add a heatmap colorbar colored by p-values for clusters
+
+    Creates a heatmap bar (default y-range 0.9-1.1) where segments are colored
+    grey if not within a significant cluster, and colored with viridis colors
+    according to p-values for significant clusters.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        the figure to add the colorbar to
+
+    clust_idx : np.ndarray
+        the cluster indices
+
+    pclust : np.ndarray
+        the p-values for each cluster
+
+    pval : float
+        the p-value threshold for significance
+
+    time : np.ndarray
+        the time points
+
+    row : int | None
+        the row to add the colorbar to
+
+    col : int | None
+        the column to add the colorbar to
+
+    y_range : tuple[float, float]
+        the y-axis range for the heatmap bar, default is (0.9, 1.1)
+
+    Returns
+    -------
+    go.Figure
+        the figure with the colorbar added
+    """
+    # Create a p-value map for all time points
+    n_time = len(time)
+    # Use a value > pval for non-significant regions (will map to grey)
+    pval_map = np.full(n_time, 1.0)
+
+    # Fill in actual p-values for significant clusters
+    for cl, p in zip(clust_idx, pclust):
+        if p < pval:
+            cluster_indices = cl[0][:]
+            pval_map[cluster_indices] = p
+
+    log_pval_map = np.log10(pval_map)
+    log_pval_threshold = np.log10(pval)
+    min_log_pval = (
+        log_pval_map[pval_map < pval].min()
+        if np.any(pval_map < pval)
+        else log_pval_threshold
+    )
+
+    scale_min = min_log_pval
+    scale_max = 0.0  # log10(1.0) = 0
+
+    # Position where threshold occurs in normalized [0, 1] scale
+    if scale_max - scale_min != 0:
+        threshold_pos = (log_pval_threshold - scale_min) / (scale_max - scale_min)
+    else:
+        threshold_pos = 1.0
+
+    # Build colorscale with inverted viridis below threshold, grey above
+    viridis_colors = px.colors.sequential.Viridis
+    n_viridis = len(viridis_colors)
+
+    colorscale = []
+
+    # Inverted viridis from 0 to threshold_pos (yellow at lowest p-values, blue at threshold)
+    for i in range(n_viridis):
+        pos = i / (n_viridis - 1) * threshold_pos
+        colorscale.append([pos, viridis_colors[n_viridis - 1 - i]])
+
+    # Grey from threshold to max
+    colorscale.append([threshold_pos, "#aaa"])
+    colorscale.append([1.0, "#aaa"])
+
+    # Create heatmap with two rows to give it height
+    z_data = np.vstack([log_pval_map, log_pval_map])
+
+    fig = fig.add_trace(
+        go.Heatmap(
+            x=time,
+            y=list(y_range),
+            z=z_data,
+            colorscale=colorscale,
+            zmin=scale_min,
+            zmax=scale_max,
+            colorbar=dict(
+                title="p-value",
+                tickvals=[
+                    min_log_pval,
+                    log_pval_threshold,
+                    log_pval_threshold / 2,
+                ],
+                ticktext=[
+                    f"{10**min_log_pval:.1e}",
+                    f"{pval:.2f}",
+                    "n.s.",
+                ],
+                len=0.5,
+                y=0.5,
+            ),
+        ),
+        row=row,
+        col=col,
+    )
 
     return fig
 
@@ -1124,5 +1571,26 @@ if __name__ == "__main__":
         same_legendgroup_only=False,
         color_pairs=[("xx", "zz"), ("xx", "yy")],
         xval_pairs=[("aa", "aa"), ("aa", "cc")],
+    )
+    fig.show()
+
+    # ---- test data for the line indicator
+    df = pd.DataFrame(np.random.randn(1000, 2), columns=["a", "b"]).assign(
+        x=np.arange(10).repeat(100), idx=np.tile(np.arange(100), 10)
+    )
+
+    curves_a = df.pivot(index="idx", columns="x", values="a").iloc[:, 1:].to_numpy().T
+    curves_b = (
+        df.pivot(index="idx", columns="x", values="b").iloc[:, 1:].to_numpy().T + 0.5
+    )
+    xaxes_vals = df["idx"].unique()
+    fig = go.Figure(
+        data=[
+            go.Scatter(x=xaxes_vals, y=curves_a.mean(axis=0), name="a"),
+            go.Scatter(x=xaxes_vals, y=curves_b.mean(axis=0), name="b"),
+        ]
+    )
+    fig = add_cluster_permut_sig_to_plotly(
+        curves_a=curves_a, curves_b=curves_b, fig=fig, xaxes_vals=xaxes_vals
     )
     fig.show()

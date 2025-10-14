@@ -17,6 +17,40 @@ def apply_default_styles(
     gridoptions_y: dict | None = None,
     gridoptions_x: dict | None = None,
 ) -> go.Figure:
+    """
+    Apply default styling to a Plotly figure.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        Plotly figure object to style.
+    row : int or None, default=None
+        Subplot row to apply styles to. If None, applies to all rows.
+    col : int or None, default=None
+        Subplot column to apply styles to. If None, applies to all columns.
+    xzero : bool, default=True
+        Show zero line on x-axis.
+    yzero : bool, default=True
+        Show zero line on y-axis.
+    showgrid : bool, default=True
+        Show grid lines on both axes.
+    ygrid : bool, default=True
+        Show grid lines on y-axis.
+    xgrid : bool, default=True
+        Show grid lines on x-axis.
+    gridoptions : dict or None, default=dict(gridcolor="#444444", gridwidth=1, griddash="dot")
+        Grid styling options. Options for griddash are 'solid', 'dot', 'dash',
+        'longdash', 'dashdot', or 'longdashdot'.
+    gridoptions_y : dict or None, default=None
+        Grid styling options specifically for y-axis. If None, uses gridoptions.
+    gridoptions_x : dict or None, default=None
+        Grid styling options specifically for x-axis. If None, uses gridoptions.
+
+    Returns
+    -------
+    go.Figure
+        Styled Plotly figure object.
+    """
     fig.update_xaxes(
         showgrid=showgrid,
         gridcolor="#444444",
@@ -79,6 +113,15 @@ def apply_default_styles(
 
 
 def get_dareplane_colors() -> list[str]:
+    """
+    Get Dareplane color palette.
+
+    Returns
+    -------
+    list of str
+        List of hex color codes for Dareplane color scheme, ordered from
+        dark blue to light green.
+    """
     return [
         "#0868acff",  # blue
         "#43a2caff",  # light blue

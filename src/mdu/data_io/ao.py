@@ -14,18 +14,77 @@ OLD_LFP_CHANNELS_PATTERN = "CEEG_1___[0-9]*___[LR][0-9]*"
 
 
 def load_ecog_channel_data_from_mat(file: Path) -> mne.io.Raw:
+    """
+    Load ECoG channel data from AlphaOmega MAT file.
+
+    Parameters
+    ----------
+    file : Path
+        Path to the AlphaOmega .mat file.
+
+    Returns
+    -------
+    mne.io.Raw
+        MNE Raw object containing ECoG channel data.
+    """
     return load_channel_data_from_mat(file, ECOG_CHANNELS_PATTERN)
 
 
 def load_lfp_channel_data_from_mat(file: Path) -> mne.io.Raw:
+    """
+    Load LFP (Local Field Potential) channel data from AlphaOmega MAT file.
+
+    Parameters
+    ----------
+    file : Path
+        Path to the AlphaOmega .mat file.
+
+    Returns
+    -------
+    mne.io.Raw
+        MNE Raw object containing LFP channel data.
+    """
     return load_channel_data_from_mat(file, LFP_CHANNELS_PATTERN)
 
 
 def load_ao_data(file: Path) -> mne.io.Raw:
+    """
+    Load both ECoG and LFP channel data from AlphaOmega MAT file.
+
+    Parameters
+    ----------
+    file : Path
+        Path to the AlphaOmega .mat file.
+
+    Returns
+    -------
+    mne.io.Raw
+        MNE Raw object containing both ECoG and LFP channel data.
+    """
     return load_channel_data_from_mat(file, ECOG_AND_LFP_CHANNELS_PATTERN)
 
 
 def load_channel_data_from_mat(file: Path, pattern: str) -> mne.io.Raw:
+    """
+    Load channel data from AlphaOmega MAT file using a regex pattern.
+
+    This function reads channel data from an AlphaOmega system MAT file,
+    filters channels based on a regex pattern, extracts metadata, converts
+    units to microvolts, and creates an MNE Raw object with annotations
+    from parallel port markers if available.
+
+    Parameters
+    ----------
+    file : Path
+        Path to the AlphaOmega .mat file.
+    pattern : str
+        Regular expression pattern to match channel names.
+
+    Returns
+    -------
+    mne.io.Raw
+        MNE Raw object containing the channel data with annotations.
+    """
     data = loadmat(file, simplify_cells=True)
     channels = [e for e in data.keys() if re.fullmatch(pattern, e)]
 
@@ -75,6 +134,26 @@ def load_channel_data_from_mat(file: Path, pattern: str) -> mne.io.Raw:
 
 
 def get_ao_channels_header(data, prefix):
+    """
+    Extract header information for AlphaOmega channels.
+
+    Parameters
+    ----------
+    data : dict
+        Loaded MAT file data dictionary.
+    prefix : str
+        Channel name prefix to extract metadata for.
+
+    Returns
+    -------
+    dict
+        Dictionary containing channel metadata with keys:
+        - t_start : Start time in seconds
+        - n_samples : Number of samples
+        - gain : Signal gain in microvolts
+        - bit_res : Bit resolution
+        - sfreq : Sampling frequency in Hz
+    """
     d = dict(
         t_start=data[prefix + "_TimeBegin"],
         n_samples=data[prefix].shape[0],

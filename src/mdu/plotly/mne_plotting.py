@@ -328,16 +328,17 @@ def plot_epoch_image(
 
 
 def plot_epo_concat(epo: mne.BaseEpochs) -> go.Figure:
-    """Plot epochs concatenated along the time axis
+    """Plot epochs concatenated along the time axis.
+
     Parameters
     ----------
     epo : mne.BaseEpochs
-        epochs to plot
+        Epochs to plot.
 
     Returns
     -------
     go.Figure
-        plotly figure
+        Plotly figure with concatenated epoch data.
     """
 
     dims = epo.get_data().shape
@@ -383,6 +384,32 @@ def plot_psds(
     px_kwargs: dict = {},
     average_epochs: bool = False,
 ) -> go.Figure:
+    """Plot power spectral densities for MNE epochs.
+
+    Parameters
+    ----------
+    epo : mne.BaseEpochs
+        The epoched time series.
+    show : bool, default=False
+        If True, display the figure.
+    psd_kwargs : dict, default={}
+        Keyword arguments passed to compute_psd.
+    color_by : str, default=""
+        Name of metadata column to color epochs by.
+    facet_col : str, default="channel"
+        Column name to use for creating faceted subplots.
+    facet_col_wrap : int, default=4
+        Number of facet columns before wrapping.
+    px_kwargs : dict, default={}
+        Additional keyword arguments passed to plotly express line plot.
+    average_epochs : bool, default=False
+        If True, average PSDs across epochs before plotting.
+
+    Returns
+    -------
+    go.Figure
+        Plotly figure with PSD plots.
+    """
     mne_psd = epo.compute_psd(n_jobs=-1, **psd_kwargs)
     data = np.vstack(np.transpose(mne_psd.get_data(), (0, 2, 1)))
 

@@ -45,33 +45,30 @@ class Forecaster:
         callbacks: Optional[list[callable]] = None,
         ytrue: Optional[np.ndarray | pd.DataFrame] = None,
     ):
-        """Unified entry point to call the model specific forecast function
+        """Unified entry point to call the model specific forecast function.
 
         Parameters
         ----------
-        y0 : np.ndarray | pd.DataFrame
+        y0 : np.ndarray or pd.DataFrame
             The starting conditions for the forecast. This is always required.
             For what statsmodels refers to as "in-sample" forecasts, just provide
             data from around the index you plan to start from -> `model.endog`.
-
-        n_fc : int
-            The number of steps to forecast
-
-        n_step_pred : int
-            The number of steps to predict ahead each time
-
-        callbacks : Optional[list[callable]]
-            A list of functions to call after each prediction of `n_step_pred`
-
-        ytrue : Optional[np.ndarray | pd.DataFrame]
+        n_fc : int, default=100
+            The number of steps to forecast.
+        n_step_pred : int, default=1
+            The number of steps to predict ahead each time.
+        exog : np.ndarray or pd.DataFrame, optional
+            Exogenous variables for the forecast horizon.
+        callbacks : list of callable, optional
+            A list of functions to call after each prediction of `n_step_pred`.
+        ytrue : np.ndarray or pd.DataFrame, optional
             The true values to use for the forecast after `n_step_pred` steps.
             This is used to realize a within sample forecast.
 
         Returns
         -------
-            np.ndarray | pd.DataFrame
-            The forecasted data of shape (n_fc, y0.shape[1])
-
+        np.ndarray or pd.DataFrame
+            The forecasted data of shape (n_fc, y0.shape[1]).
         """
 
         model_fc = get_instance_specific_simulator(self.model)
@@ -89,11 +86,40 @@ class Forecaster:
         return fc
 
     def trigger_callbacks(self, callbacks: list[callable], *args, **kwargs):
+        """Trigger all callback functions with the provided arguments.
+
+        Parameters
+        ----------
+        callbacks : list of callable
+            List of callback functions to execute.
+        *args
+            Positional arguments to pass to each callback.
+        **kwargs
+            Keyword arguments to pass to each callback.
+        """
         for cb in callbacks:
             cb(*args, **kwargs)
 
 
 def get_instance_specific_simulator(model: object):
+    """Get the appropriate simulator function for a given model instance.
+
+    Parameters
+    ----------
+    model : object
+        The model instance to get a simulator for. Currently supports
+        statsmodels ResultsWrapper types from tsa and regression modules.
+
+    Returns
+    -------
+    callable
+        The simulator function appropriate for the given model type.
+
+    Raises
+    ------
+    NotImplementedError
+        If the model type is not supported for simulation.
+    """
     # try direct lookup
     sim_map = {}
     tp = type(model)
@@ -126,11 +152,31 @@ def forecast_statsmodels_tsa(
     callbacks: Optional[list[callable]] = None,
     refit: bool = False,
 ) -> np.ndarray | pd.DataFrame:
-    """
-    Use the statsmodels specific syntax for insample and out of sample
-    forecasts
+    """Use the statsmodels specific syntax for in-sample and out-of-sample forecasts.
 
-    Return data type same as y0
+    Parameters
+    ----------
+    fc : Forecaster
+        The Forecaster instance containing the model.
+    y0 : np.ndarray or pd.DataFrame
+        Initial conditions for the forecast.
+    n_fc : int, default=100
+        Number of forecast steps.
+    n_step_pred : int, default=1
+        Number of steps to predict ahead each time.
+    exog : np.ndarray or pd.DataFrame, optional
+        Exogenous variables for the forecast horizon.
+    ytrue : np.ndarray or pd.DataFrame, optional
+        True values to use for the forecast (for in-sample forecasting).
+    callbacks : list of callable, optional
+        List of callback functions to execute after each prediction step.
+    refit : bool, default=False
+        Whether to refit the model after each prediction step.
+
+    Returns
+    -------
+    np.ndarray or pd.DataFrame
+        Forecasted values with the same type as y0.
     """
     if exog is not None:
         assert (
@@ -225,6 +271,24 @@ def check_condition_compare(
     exog: np.ndarray | pd.DataFrame | None = None,
     exog_orig: np.ndarray | pd.DataFrame | None = None,
 ) -> bool:
+    """Check if initial conditions match the original model data.
+
+    Parameters
+    ----------
+    y0 : np.ndarray or pd.DataFrame
+        Initial conditions to compare.
+    endog_orig : np.ndarray or pd.DataFrame
+        Original endogenous data from the model.
+    exog : np.ndarray or pd.DataFrame, optional
+        Exogenous variables to compare.
+    exog_orig : np.ndarray or pd.DataFrame, optional
+        Original exogenous data from the model.
+
+    Returns
+    -------
+    bool
+        True if conditions match, False otherwise.
+    """
     if exog is not None:
         assert exog_orig is not None, f"If {exog=} is provided, {exog_orig=} is needed"
 

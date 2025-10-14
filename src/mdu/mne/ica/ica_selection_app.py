@@ -32,30 +32,30 @@ from mdu.plotly.mne_plotting_utils.time_series import plot_evoked_ts
 def create_comp_i_figures(
     ica, ica_epos, epo, df, ncomponent, nth_row=1, color_by="stim"
 ):
-    """Create the plotly figures for the ith ICA component
+    """Create the plotly figures for the ith ICA component.
 
     Parameters
     ----------
-    ica : mne.ICA
-        ica instance to porcess
-    ica_epo : mne.Epochs
-        epochs in source space
+    ica : mne.preprocessing.ICA
+        ICA instance to process.
+    ica_epos : mne.Epochs
+        Epochs in source space (ICA components).
     epo : mne.Epochs
-        regular epochs
-
-    ncomponet : int
-        number of the component to display
-    nth_row : int
-        number of rows this will create -> create odd/even
-        class labels for coloring the backgrounds
-    df : pandas.DataFrame
-        data frame with epoch labels and behavioral info
+        Regular epochs in sensor space.
+    df : pd.DataFrame
+        Data frame with epoch labels and behavioral info.
+    ncomponent : int
+        Number of the ICA component to display.
+    nth_row : int, default=1
+        Row number used to create odd/even class labels for coloring backgrounds.
+    color_by : str, default="stim"
+        Column name in df to use for coloring plots by group.
 
     Returns
     -------
-    out_html : html.Div
-        html div for the ith ICA component including plots, buttons and
-        callbacks
+    html.Div
+        Dash HTML div for the ith ICA component including plots, buttons, and
+        callbacks.
     """
 
     ch_name = ica_epos.ch_names[ncomponent]

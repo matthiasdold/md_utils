@@ -175,6 +175,28 @@ def plot_epo_image(
 
 
 def plot_epoch_image_base64(data, times, fig=None, row=1, col=1, cm=None):
+    """Plot epoch image as a base64-encoded matplotlib figure embedded in plotly.
+
+    Parameters
+    ----------
+    data : np.ndarray, shape (n_epochs, n_times)
+        Epoch data to plot.
+    times : np.ndarray
+        Time points for the x-axis.
+    fig : go.Figure, optional
+        Plotly figure to add the plot to.
+    row : int, default=1
+        Row index for subplot placement.
+    col : int, default=1
+        Column index for subplot placement.
+    cm : matplotlib.colors.Colormap, optional
+        Colormap to use, defaults to plt.cm.bwr.
+
+    Returns
+    -------
+    go.Figure
+        Plotly figure with embedded epoch image.
+    """
     cm = plt.cm.bwr if cm is None else cm
 
     auxfig, aux_ax = plt.subplots()
@@ -250,8 +272,27 @@ def plot_epoch_image_base64(data, times, fig=None, row=1, col=1, cm=None):
 def serialize_matplotlib_figure(
     fig, format="png", bbox_inches="tight", **kwargs
 ) -> bytes:
-    """Serialize by saving to a byte stream
-    Note: png seems to work best as a format
+    """Serialize matplotlib figure by saving to a byte stream.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        Matplotlib figure to serialize.
+    format : str, default="png"
+        Output format for the serialized figure. PNG works best.
+    bbox_inches : str, default="tight"
+        Bounding box setting for the saved figure.
+    **kwargs
+        Additional keyword arguments passed to fig.savefig.
+
+    Returns
+    -------
+    bytes
+        Base64-encoded bytes of the serialized figure.
+
+    Notes
+    -----
+    PNG format seems to work best for serialization.
     """
     string_io_bytes = io.BytesIO()
     fig.savefig(
@@ -281,6 +322,40 @@ def plot_epoch_image_full_mode(
     zero_center: bool = False,
     zscale: bool = False,
 ) -> go.Figure:
+    """Plot epoch image using plotly heatmap (full mode).
+
+    Parameters
+    ----------
+    data : np.ndarray, shape (n_epochs, n_times)
+        Epoch data to plot.
+    times : np.ndarray
+        Time points for the x-axis.
+    fig : go.Figure, optional
+        Plotly figure to add the plot to.
+    row : int, default=1
+        Row index for subplot placement.
+    col : int, default=1
+        Column index for subplot placement.
+    colorscale : str, default="picnic"
+        Colorscale name for the heatmap.
+    showscale : bool, default=False
+        If True, show the colorbar.
+    reversescale : bool, default=False
+        If True, reverse the colorscale.
+    vmin_q : float, default=0.01
+        Lower quantile for color scaling.
+    vmax_q : float, default=0.99
+        Upper quantile for color scaling.
+    zero_center : bool, default=False
+        If True, center the colorscale at zero.
+    zscale : bool, default=False
+        If True, z-score normalize each epoch.
+
+    Returns
+    -------
+    go.Figure
+        Plotly figure with epoch image heatmap.
+    """
     fig = make_subplots(1, 1) if fig is None else fig
 
     if zscale:  # per epoch zscaling
@@ -340,9 +415,26 @@ def plot_epoch_image_full_mode(
 def get_zero_green_JET_scale(
     zmin: float, zmax: float
 ) -> tuple[list[list[float, str]], dict]:
-    """
-    Given min and max values, create a colormap, which has green at 0, but
-    might be asymmetric.
+    """Create a colormap with green at zero for asymmetric data ranges.
+
+    Parameters
+    ----------
+    zmin : float
+        Minimum value of the data range.
+    zmax : float
+        Maximum value of the data range.
+
+    Returns
+    -------
+    colormap : list of list
+        Colormap specification as [[position, color], ...] pairs.
+    colorbar : dict
+        Colorbar tick configuration with tickvals and ticktext.
+
+    Notes
+    -----
+    Creates a JET-based colormap that always has green at zero, handling
+    asymmetric ranges where zmin and zmax have different magnitudes.
     """
 
     jscale = px.colors.sequential.Jet

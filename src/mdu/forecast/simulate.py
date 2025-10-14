@@ -11,6 +11,20 @@ class AuxModel:
         self.model = model
 
     def predict(self, y, x=None):
+        """Predict using the model with fixed exogenous variables.
+
+        Parameters
+        ----------
+        y : np.ndarray
+            Endogenous variable values.
+        x : np.ndarray, optional
+            Exogenous variable values, by default None.
+
+        Returns
+        -------
+        np.ndarray
+            Predicted values as a flattened array.
+        """
         return self.model.predict(X=x, y=y).flatten()
 
 

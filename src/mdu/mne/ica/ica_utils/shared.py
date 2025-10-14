@@ -21,6 +21,24 @@ from xileh.core.pipelinedata import xPData
 
 
 def load_config():
+    """
+    Load and process configuration from YAML file.
+
+    Reads the config.yaml file, flattens the configuration dictionary,
+    and replaces any template strings with their corresponding values
+    from the flattened configuration.
+
+    Returns
+    -------
+    dict
+        The processed configuration dictionary with all templates replaced.
+
+    Notes
+    -----
+    This function expects a 'config.yaml' file to exist in the current
+    working directory. Template strings in the format <key.path> or
+    <key.path[index]> will be replaced with their corresponding values.
+    """
     conf = yaml.safe_load(open("config.yaml"))
     conf = replace_templates(conf, flatten_dict(conf))
     return conf
@@ -28,10 +46,36 @@ def load_config():
 
 def replace_templates(conf, conf_flat):
     """
-    Find <[^>]*> in the strings and replace with appropriate key val
+    Replace template strings in configuration with actual values.
 
-    The template <some.thing[0]> might include an index [0] --> assuming
-    that the value for some.thing is iterable, choose according to index
+    Recursively searches through a configuration dictionary for template
+    strings in the format <key.path> or <key.path[index]> and replaces
+    them with the corresponding values from the flattened configuration.
+
+    Parameters
+    ----------
+    conf : dict
+        The configuration dictionary that may contain template strings.
+    conf_flat : dict
+        A flattened version of the configuration dictionary where nested
+        keys are joined with dots (e.g., 'parent.child').
+
+    Returns
+    -------
+    dict
+        The configuration dictionary with all template strings replaced
+        with their corresponding values.
+
+    Raises
+    ------
+    KeyError
+        If a template string references a key that doesn't exist in the
+        flattened configuration.
+
+    Notes
+    -----
+    Template strings can include array indexing (e.g., <some.key[0]>).
+    The function recursively processes nested dictionaries.
     """
     for k, v in conf.items():
         if isinstance(v, str):
@@ -57,7 +101,28 @@ def replace_templates(conf, conf_flat):
 
 
 def flatten_dict(d_in):
-    """flatten a dict if any of its values is a dict -> use key as prefix"""
+    """
+    Flatten a nested dictionary into a single-level dictionary.
+
+    Recursively flattens nested dictionaries by joining keys with dots.
+    For example, {'a': {'b': 1}} becomes {'a.b': 1}.
+
+    Parameters
+    ----------
+    d_in : dict
+        The input dictionary to flatten, which may contain nested dictionaries.
+
+    Returns
+    -------
+    dict
+        A flattened dictionary where nested keys are joined with dots.
+        Non-dictionary values remain unchanged.
+
+    Examples
+    --------
+    >>> flatten_dict({'a': {'b': 1, 'c': 2}, 'd': 3})
+    {'a.b': 1, 'a.c': 2, 'd': 3}
+    """
     d = d_in.copy()
     # list as we do not want a generator
     kvals = [(k, v) for k, v in d.items()]
@@ -73,13 +138,67 @@ def flatten_dict(d_in):
 
 
 def has_config(pdata):
+    """
+    Validate that pipeline data contains a configuration container.
+
+    Checks if the provided pipeline data object has a 'config' container
+    and raises an assertion error if it doesn't.
+
+    Parameters
+    ----------
+    pdata : xPData
+        Pipeline data object that should contain a 'config' container.
+
+    Returns
+    -------
+    xPData
+        The same pipeline data object that was passed in, unchanged.
+
+    Raises
+    ------
+    AssertionError
+        If the 'config' container is not found in pdata.
+
+    Notes
+    -----
+    This function is typically used as a validation step in a pipeline
+    to ensure required configuration is present before proceeding.
+    """
     conf = pdata.get_by_name("config")
     assert conf is not None, "This pipeline requires a 'config' container"
     return pdata
 
 
 def make_choice(options, allow_multiple=True):
-    """Select out of a list of options"""
+    """
+    Interactively prompt user to select from a list of options.
+
+    Displays a numbered list of options and prompts the user to select
+    one or more items via command-line input. Supports single or multiple
+    selections, including selecting all options at once.
+
+    Parameters
+    ----------
+    options : list
+        List of options to choose from. Can be any iterable of items
+        that can be converted to strings for display.
+    allow_multiple : bool, optional
+        If True, allows selecting multiple options via comma-separated
+        indices (e.g., '1,2,3') or 'a' for all. If False, only single
+        selection is allowed. Default is True.
+
+    Returns
+    -------
+    list
+        List of selected options from the input list. Returns all options
+        (except 'all' if present) if 'a' was selected.
+
+    Notes
+    -----
+    The function will continue prompting until valid input is received.
+    Valid input consists of comma-separated indices within the range
+    of available options, or 'a' for all (if allow_multiple is True).
+    """
 
     choice_index = [str(i) for i in range(len(options))]
     msg = "Please select one"
@@ -107,7 +226,43 @@ def make_choice(options, allow_multiple=True):
 
 
 def load_epo_fif(pdata, trg_container="epos", filter_exp=None):
-    """Read the raw fif from disc"""
+    """
+    Load epoch FIF files from disk and add to pipeline data.
+
+    Searches for epoch FIF files (*epo.fif) in the processed data folder
+    specified in the configuration, optionally filters them using a regular
+    expression, and prompts user selection if multiple files are found.
+
+    Parameters
+    ----------
+    pdata : xPData
+        Pipeline data object containing configuration and where the loaded
+        epochs will be added.
+    trg_container : str, optional
+        Name for the target container to store the loaded epochs.
+        Default is 'epos'.
+    filter_exp : str or None, optional
+        Regular expression pattern to filter the list of found FIF files.
+        If None, all *epo.fif files are included. Default is None.
+
+    Returns
+    -------
+    xPData
+        The pipeline data object with the loaded epochs added as a new
+        container with the specified name.
+
+    Raises
+    ------
+    ValueError
+        If the filter_exp leads to dropping all available FIF files.
+
+    Notes
+    -----
+    The function uses cached_mne_read_epo for efficient file loading.
+    If multiple files match after filtering, the user is prompted to
+    select one interactively. File metadata is stored in the container
+    header for tracking purposes.
+    """
 
     conf = pdata.get_by_name("config").data
     sess_root = Path(conf["data_root"]).joinpath(conf["session"])
@@ -147,6 +302,34 @@ def load_epo_fif(pdata, trg_container="epos", filter_exp=None):
 def apply_common_reference(
     pdata, src_container="epos", ref_channels="average"
 ):
+    """
+    Apply common reference to EEG epochs data.
+
+    Re-references the EEG data in the specified container using MNE's
+    set_eeg_reference function. The operation is performed in-place on
+    the source container's data.
+
+    Parameters
+    ----------
+    pdata : xPData
+        Pipeline data object containing the epochs to be re-referenced.
+    src_container : str, optional
+        Name of the container holding the epochs data to re-reference.
+        Default is 'epos'.
+    ref_channels : str or list, optional
+        Reference channel(s) to use. Can be 'average' for average reference,
+        a channel name, or a list of channel names. Default is 'average'.
+
+    Returns
+    -------
+    xPData
+        The pipeline data object with the re-referenced epochs data.
+
+    Notes
+    -----
+    This function modifies the data in-place. The original unreferenced
+    data is not preserved.
+    """
     src = pdata.get_by_name(src_container)
     mne.set_eeg_reference(src.data, ref_channels=ref_channels)
 
@@ -155,7 +338,29 @@ def apply_common_reference(
 
 @cached
 def cached_mne_read_epo(fpath):
-    """Given the fif file path call mne.read_epochs"""
+    """
+    Load MNE epochs from FIF file with caching.
+
+    A cached wrapper around mne.read_epochs that loads epoch data with
+    preloading enabled. The @cached decorator ensures that repeated
+    calls with the same file path return the cached result.
+
+    Parameters
+    ----------
+    fpath : str or Path
+        Path to the epoch FIF file to load.
+
+    Returns
+    -------
+    mne.Epochs
+        The loaded epochs object with data preloaded into memory.
+
+    Notes
+    -----
+    The caching mechanism improves performance when the same file is
+    read multiple times during a session. Data is always preloaded
+    for faster subsequent operations.
+    """
     return mne.read_epochs(fpath, preload=True)
 
 
@@ -166,6 +371,43 @@ def filter_epo_data(
     fband=[0.1, 300],
     **kwargs,
 ):
+    """
+    Apply bandpass filter to epoch data.
+
+    Filters the epochs data from the source container using the specified
+    frequency band and stores the result in the target container. If the
+    target container doesn't exist, it will be created.
+
+    Parameters
+    ----------
+    pdata : xPData
+        Pipeline data object containing the epochs to filter.
+    src_container : str, optional
+        Name of the container holding the source epochs data.
+        Default is 'epos'.
+    trg_container : str, optional
+        Name of the container to store the filtered epochs data.
+        Can be the same as src_container to replace the original data.
+        Default is 'epos'.
+    fband : list of float, optional
+        Two-element list specifying the lower and upper frequency bounds
+        for the bandpass filter in Hz. Default is [0.1, 300].
+    **kwargs : dict
+        Additional keyword arguments passed to mne.Epochs.filter().
+
+    Returns
+    -------
+    xPData
+        The pipeline data object with the filtered epochs in the target
+        container.
+
+    Notes
+    -----
+    The function creates a copy of the epochs before filtering to avoid
+    modifying the original data unintentionally. If trg_container differs
+    from src_container and doesn't exist, a new container is created with
+    a descriptive header.
+    """
     epo = pdata.get_by_name(src_container).data
 
     if (
@@ -190,6 +432,37 @@ def filter_epo_data(
 
 
 def create_ica_plot_overlay(ica, epo):
+    """
+    Create an overlay plot comparing raw and ICA-filtered EEG data.
+
+    Generates a Plotly graph showing the averaged epochs before and after
+    ICA filtering. The plot overlays raw data (in red with transparency)
+    and filtered data (in black) to visualize the effect of ICA component
+    exclusion.
+
+    Parameters
+    ----------
+    ica : mne.preprocessing.ICA
+        The ICA object with components marked for exclusion in ica.exclude.
+    epo : mne.BaseEpochs
+        The epochs data to average and compare.
+
+    Returns
+    -------
+    dash.dcc.Graph
+        A Dash graph component containing the overlay plot with the ID
+        'ica_overlay_graph'.
+
+    Notes
+    -----
+    The function prints the current ica.exclude list for debugging.
+    The plot includes:
+    - A zero reference line (blue)
+    - Raw evoked data traces (red, 50% opacity)
+    - ICA-filtered evoked data traces (black)
+    Only the second trace of each type is shown in the legend to avoid
+    clutter.
+    """
     evk = epo.average()
     evk_clean = ica.apply(evk.copy())
 
@@ -256,6 +529,45 @@ def attach_callbacks(
     epo: mne.BaseEpochs,
     ica_file: Path = Path("./wip_ica.fif"),
 ) -> dash.Dash:
+    """
+    Attach interactive callbacks to a Dash app for ICA component selection.
+
+    Sets up two main callbacks for the ICA selection interface:
+    1. Updates component selection display and overlay plot based on radio
+       button selections
+    2. Saves the ICA model with selected components to a FIF file
+
+    Parameters
+    ----------
+    app : dash.Dash
+        The Dash application to attach callbacks to.
+    ncomponents : int
+        Number of ICA components to create selection controls for.
+    ica : mne.preprocessing.ICA
+        The ICA object whose exclude list will be updated based on user
+        selections.
+    epo : mne.BaseEpochs
+        The epochs data used for generating overlay plots.
+    ica_file : Path, optional
+        Path where the ICA model will be saved when the save button is
+        clicked. Default is Path('./wip_ica.fif').
+
+    Returns
+    -------
+    dash.Dash
+        The Dash application with callbacks attached.
+
+    Notes
+    -----
+    The function creates two callbacks:
+    - change_accepted_rejected_count: Updates the acceptance/rejection
+      counts, visual indicators, and overlay plot in real-time
+    - save_to_file_or_change_color: Saves the ICA model and changes the
+      save button color to indicate save status
+
+    The ica.exclude list is updated dynamically based on component
+    selections (components marked as 'reject' are added to ica.exclude).
+    """
     # dynamic header row
     @app.callback(
         [
