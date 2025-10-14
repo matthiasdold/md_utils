@@ -1034,7 +1034,6 @@ def add_cluster_permut_sig_to_plotly(
     pval: float = 0.05,
     nperm: int = 1024,
     mode: str = "line",
-    showlegend: bool = False,
 ) -> go.Figure:
     """Add a cluster permutation significance indicator to a plotly figure
 
@@ -1061,9 +1060,7 @@ def add_cluster_permut_sig_to_plotly(
             'p_bg': a background if p < ptarget
             'spark': sparklines of the rvalue itself
             'p_colorbar': a vertical colorbar indicating the pvalue if less than `pval`
-            'line': simple black line with "*" marked
-    showlegend : bool
-        whether to show the legend
+            'line': simple black line with "p-val" as text (default)
 
     Returns
     -------
