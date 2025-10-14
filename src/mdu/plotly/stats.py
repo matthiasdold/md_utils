@@ -1332,7 +1332,7 @@ def fig_add_clust_line(
                 name=f"cl_perm_{cl[0][0]}_{cl[0][-1]}",
                 row=row,
                 col=col,
-                text=[f"p={p:.3f}"] + [""] * (len(x) - 1),
+                text=[f"p<{p:.3f}"] + [""] * (len(x) - 1),
                 textposition="top right",
             )
 
