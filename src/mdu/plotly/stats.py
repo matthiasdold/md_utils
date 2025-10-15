@@ -195,7 +195,10 @@ def add_statsmodel_fit(
     """
     tfc = ToFloatConverter()
     xorig = x.copy()
-    x = tfc.to_float(x)
+    sort_idx = np.argsort(xorig)
+    xsorted = xorig[sort_idx]
+    x = tfc.to_float(x[sort_idx])
+    y = y[sort_idx]
 
     assert len(x.shape) == 1, "x must be a 1D array - TODO: inplement more"
 
@@ -203,9 +206,10 @@ def add_statsmodel_fit(
     x = sm.add_constant(x)
     model = fitfunc(y, x).fit()
     statframe = model.get_prediction(x).summary_frame(alpha=ci_alpha)
+
     if show_ci:
         fig.add_scatter(
-            x=np.hstack([xorig, xorig[::-1]]),
+            x=np.hstack([xsorted, xsorted[::-1]]),
             y=np.hstack([statframe["mean_ci_upper"], statframe["mean_ci_lower"][::-1]]),
             name=f"{ci_alpha:.0%} fit CI",
             hoverinfo="skip",  # hover with the filled trace is tricky
@@ -217,7 +221,7 @@ def add_statsmodel_fit(
 
     if show_obs_ci:
         fig.add_scatter(
-            x=xorig,
+            x=xsorted,
             y=statframe["obs_ci_upper"],
             name=f"{ci_alpha:.0%} fit obs CI upper",
             mode="lines",
@@ -228,7 +232,7 @@ def add_statsmodel_fit(
             **obs_ci_kwargs,
         )
         fig.add_scatter(
-            x=xorig,
+            x=xsorted,
             y=statframe["obs_ci_lower"],
             name=f"{ci_alpha:.0%} fit obs CI lower",
             hovertemplate="Obs CI: %{y}<br>x: %{x}",
@@ -242,13 +246,13 @@ def add_statsmodel_fit(
     stat_text = "<br>".join(f"{model.summary()}".split("\n")[:-5])
 
     fig.add_scatter(
-        x=xorig,
+        x=xsorted,
         y=statframe["mean"],
         mode="lines",
         name="fit line",
         hovertemplate="<b>Pred. mean: %{y}, x: %{x}</b><br><br>%{text}",
         hoverlabel=dict(font=dict(family="monospace"), bgcolor="#ccc"),
-        text=[stat_text] * len(xorig),
+        text=[stat_text] * len(xsorted),
         row=row,
         col=col,
         **line_kwargs,
