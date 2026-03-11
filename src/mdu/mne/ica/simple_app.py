@@ -26,10 +26,11 @@ import mne
 import numpy as np
 import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, callback_context, dcc, html, no_update
-from plotly_resampler import FigureResampler
 from tqdm import tqdm
 
 from mdu.mne.ica.ica_utils.shared import attach_callbacks
+from mdu.mne.ica.resampler_plotting import create_raw_overlay_figure
+from mdu.plotly.resampler_compat import FigureResampler
 
 
 def matplotlib_to_base64(fig: plt.Figure) -> str:
@@ -242,68 +243,17 @@ class SelectionApp:
             self.ica.exclude = [i for i, v in enumerate(radios) if v == "reject"]
             yc = self.inst.copy().pick([channel]).get_data()[0]
             yica = self.ica.apply(self.inst.copy()).pick([channel]).get_data()[0]
-            fig = self.resampler_fig
 
-            if len(fig.data):
-                # Replace the figure with an empty one to clear the graph
-                fig.replace(go.Figure())
-            fig.add_trace(
-                go.Scattergl(name="raw", line=dict(color="#ff5555"), opacity=0.5),
-                hf_x=self.inst.times,
-                hf_y=yc,
-            )
-            fig.add_trace(
-                go.Scattergl(name="filtered", line=dict(color="#111")),
-                hf_x=self.inst.times,
-                hf_y=yica,
-            )
-
-            fig = fig.update_layout(
-                font=dict(
-                    size=16,
-                ),
-                margin=dict(l=10, r=10, t=10, b=10),
-                **parse_relayout_data(relayout_data),
+            # Use the helper function to create the overlay figure
+            fig = create_raw_overlay_figure(
+                inst_times=self.inst.times,
+                raw_data=yc,
+                filtered_data=yica,
+                resampler_fig=self.resampler_fig,
+                relayout_data=relayout_data,
             )
 
             return fig
-
-
-def parse_relayout_data(layout: dict | None) -> dict:
-    """Parse Plotly relayout data to extract axis range information.
-
-    Extracts x-axis and y-axis range values from Plotly's relayoutData callback
-    format and converts them to a format suitable for updating figure layout.
-
-    Parameters
-    ----------
-    layout : dict or None
-        The relayoutData dictionary from Plotly Dash callback containing keys like
-        'xaxis.range[0]', 'xaxis.range[1]', etc., or None if no layout data exists.
-
-    Returns
-    -------
-    dict
-        Dictionary with 'xaxis_range' and/or 'yaxis_range' keys containing
-        [min, max] lists, or empty dict if no range data found.
-    """
-    if layout is None:
-        return {}
-
-    ret_d = {}
-    if "xaxis.range[0]" in layout.keys() and "xaxis.range[1]" in layout.keys():
-        ret_d["xaxis_range"] = [
-            layout["xaxis.range[0]"],
-            layout["xaxis.range[1]"],
-        ]
-
-    if "yaxis.range[0]" in layout.keys() and "yaxis.range[1]" in layout.keys():
-        ret_d["yaxis_range"] = [
-            layout["yaxis.range[0]"],
-            layout["yaxis.range[1]"],
-        ]
-
-    return ret_d
 
 
 def create_figs(app: SelectionApp) -> list[html.Div]:

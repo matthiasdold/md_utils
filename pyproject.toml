@@ -9,6 +9,11 @@ authors = [{name="Matthias Dold", email="matthias.dold@gmx.de"}]
 description = "Default utilities I use for electrophys analysis"
 readme ="README.md"
 requires-python = ">=3.10"
+license = {text = "MIT"}
+
+[project.optional-dependencies]
+resampler = ["plotly-resampler"]
+all = ["plotly-resampler"]
 
 [tool.pytest.ini_options]
 addopts = "-ra -q"
