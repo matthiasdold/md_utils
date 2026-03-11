@@ -1,7 +1,7 @@
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from plotly_resampler import register_plotly_resampler, unregister_plotly_resampler
+# from plotly_resampler import register_plotly_resampler, unregister_plotly_resampler
 
 from mdu.plotly.styling import apply_default_styles
 
@@ -10,43 +10,43 @@ class DataShapeError(Exception):
     pass
 
 
-def plot_ts_resampling(
-    data: np.ndarray,
-    x: np.ndarray | None = None,
-    names: list[str] | None = None,
-    show: bool = False,
-) -> go.Figure:
-    """Plot one ore multiple time series with resampling active
-
-    Parameters
-    ----------
-    data : np.ndarray
-        data array with shape (n_samples, n_features)
-
-    x : np.ndarray | None
-        array of x values, by default None. If None, np.arange(data.shape[0])
-        is used
-
-    names: list[str] | None
-        names to use as labels for the traces, by default None.
-
-    show : bool, optional
-        if True, show the figure, by default False
-
-
-    Returns
-    -------
-    go.Figure
-
-    """
-
-    register_plotly_resampler()
-    fig = plot_ts(data, x, names=names, show=False)
-    unregister_plotly_resampler()
-    if show:
-        fig.show_dash(mode="external")
-
-    return fig
+# def plot_ts_resampling(
+#     data: np.ndarray,
+#     x: np.ndarray | None = None,
+#     names: list[str] | None = None,
+#     show: bool = False,
+# ) -> go.Figure:
+#     """Plot one ore multiple time series with resampling active
+#
+#     Parameters
+#     ----------
+#     data : np.ndarray
+#         data array with shape (n_samples, n_features)
+#
+#     x : np.ndarray | None
+#         array of x values, by default None. If None, np.arange(data.shape[0])
+#         is used
+#
+#     names: list[str] | None
+#         names to use as labels for the traces, by default None.
+#
+#     show : bool, optional
+#         if True, show the figure, by default False
+#
+#
+#     Returns
+#     -------
+#     go.Figure
+#
+#     """
+#
+#     register_plotly_resampler()
+#     fig = plot_ts(data, x, names=names, show=False)
+#     unregister_plotly_resampler()
+#     if show:
+#         fig.show_dash(mode="external")
+#
+#     return fig
 
 
 def plot_ts(

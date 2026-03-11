@@ -45,7 +45,7 @@ def add_ols_fit(
     col: int | None = None,
     ci_alpha: float = 0.05,
     show_ci: bool = True,
-    show_obs_ci: bool = True,
+    show_obs_ci: bool = False,
     line_kwargs: dict = {
         "line": {"color": "#222"},
     },
@@ -130,7 +130,7 @@ def add_statsmodel_fit(
     col: int | None = None,
     ci_alpha: float = 0.05,
     show_ci: bool = True,
-    show_obs_ci: bool = True,
+    show_obs_ci: bool = False,
     line_kwargs: dict = {
         "line": {"color": "#222"},
     },
@@ -217,6 +217,7 @@ def add_statsmodel_fit(
             **ci_kwargs,
             row=row,
             col=col,
+            legendrank=2,
         )
 
     if show_obs_ci:
@@ -227,6 +228,7 @@ def add_statsmodel_fit(
             mode="lines",
             legendgroup="obs_ci",
             hovertemplate="Obs CI: %{y}<br>x: %{x}",
+            legendrank=3,
             row=row,
             col=col,
             **obs_ci_kwargs,
@@ -239,6 +241,7 @@ def add_statsmodel_fit(
             row=row,
             col=col,
             mode="lines",
+            legendrank=3,
             legendgroup="obs_ci",
             **obs_ci_kwargs,
         )
@@ -253,6 +256,7 @@ def add_statsmodel_fit(
         hovertemplate="<b>Pred. mean: %{y}, x: %{x}</b><br><br>%{text}",
         hoverlabel=dict(font=dict(family="monospace"), bgcolor="#ccc"),
         text=[stat_text] * len(xsorted),
+        legendrank=1,
         row=row,
         col=col,
         **line_kwargs,
@@ -325,8 +329,11 @@ def add_box_significance_indicator(
     dsigs = []
     for axes, dg in df_data.groupby(["xaxis", "yaxis"]):
         dsig = group_paired_tests(
-            dg, group_cols=["offsetgroup", "legendgroup", "name", "x"], value_col="y"
-        ).assign(xaxis=axes[0], yaxis=axes[1])
+            dg,
+            group_cols=["offsetgroup", "legendgroup", "name", "x"],
+            value_col="y",
+            test_func=stat_func,
+        ).assign(xaxis=axes[0], yaxis=axes[1])  # type: ignore
         dsigs.append(dsig)
 
     ds = pd.concat(dsigs)
@@ -350,7 +357,6 @@ def add_box_significance_indicator(
     # >> for colors
     if same_legendgroup_only:
         ds = ds[ds["legendgroup_g1"] == ds["legendgroup_g2"]]
-
     elif color_pairs is not None:
         dsf = [
             ds[
@@ -360,7 +366,7 @@ def add_box_significance_indicator(
             for cv1, cv2 in color_pairs
         ]
 
-        ds = pd.concat(dsf)
+        ds = pd.concat(dsf)  # type: ignore
 
     # ----------------------------------------------------------------------
     # Prepare axis
@@ -374,7 +380,7 @@ def add_box_significance_indicator(
     # ----------------------------------------------------------------------
     # Plotting
     # ----------------------------------------------------------------------
-    for gk, dg in ds.groupby(["xaxis", "yaxis"]):
+    for gk, dg in ds.groupby(["xaxis", "yaxis"]):  # type: ignore
         # select the correct Cat2Nums wrapper according to the anchor string
         cat2num = (
             cat2nums[0]
@@ -382,19 +388,19 @@ def add_box_significance_indicator(
             else [
                 c2n
                 for c2n in cat2nums
-                if c2n.ax_cfg["xaxis_anchor"] == gk[0]
-                and c2n.ax_cfg["yaxis_anchor"] == gk[1]
+                if c2n.ax_cfg["xaxis_anchor"] == gk[0]  # type: ignore
+                and c2n.ax_cfg["yaxis_anchor"] == gk[1]  # type: ignore
             ][0]
         )
 
-        ys = df[(df.xaxis == gk[0]) & (df.yaxis == gk[1])]["y"]
+        ys = df_data[(df_data.xaxis == gk[0]) & (df_data.yaxis == gk[1])]["y"]  # type: ignore
         dy = ys.max() - ys.min()
 
         # draw the indicator lines
         yline = ys.min() - dy * rel_y_offset
 
         # sort according to `left` x for cleaner look with multiple bars
-        dg = dg.sort_values(["x_g1", "x_g2", "legendgroup_g1"])
+        dg = dg.sort_values(["x_g1", "x_g2", "legendgroup_g1"])  # type: ignore
 
         for _, row in dg.iterrows():
             msk = [row.pval < pq for pq in p_quantiles]
@@ -417,6 +423,9 @@ def add_box_significance_indicator(
             )
             xmid = (x1p + x2p) / 2
 
+            irow = cat2num.ax_cfg["row"]
+            icol = cat2num.ax_cfg["col"]
+
             # the line
             fig.add_trace(
                 go.Scatter(
@@ -429,16 +438,18 @@ def add_box_significance_indicator(
                     showlegend=False,
                     hoverinfo="skip",  # disable hover
                 ),
-                row=cat2num.ax_cfg["row"],
-                col=cat2num.ax_cfg["col"],
+                row=irow,
+                col=icol,
             )
 
             # Marker for hover
             hovertemplate = (
                 f"<b>{row.x_g1}</b> vs. <b>{row.x_g2}</b><br>"
-                f"<b>test function</b>: {stat_func.__name__}"
+                f"<b>test function</b>: {stat_func.__name__}<br>"
+                f"<b>test function kwargs: </b>: {row.kwargs}"
                 f"<br><b>N-dist1</b>: {row.n1}<br><b>N-dist2</b>: {row.n2}<br>"
-                f"<b>statistic</b>: {row.stat}<br><b>pval</b>: {row.pval}<extra></extra>"
+                f"<b>statistic</b>: {row.stat}<br><b>pval</b>: {row.pval:.6f}<br>"
+                f"<b>Shapiro-Wilk pvals</b>: dist1_p={row.shapiro_1_p:.6f}, dist2_p={row.shapiro_2_p:.6f}<extra></extra>"
             )
 
             fig.add_trace(
@@ -453,8 +464,8 @@ def add_box_significance_indicator(
                     marker_size=10,
                     hovertemplate=hovertemplate,
                 ),
-                row=cat2num.ax_cfg["row"],
-                col=cat2num.ax_cfg["col"],
+                row=irow,
+                col=icol,
             )
 
             # Offset next line
@@ -736,19 +747,43 @@ def group_paired_tests(
 
     data = []
     for (gk1, dg1), (gk2, dg2) in combinations(grps, 2):
-        test = test_func(dg1[value_col], dg2[value_col], **test_func_kwargs)  # type: ignore
+        # -- Check if the test_func accepts all test_func_kwargs, if not drop the kwargs that cannot be processed and warn via logger
+        import inspect
+
+        if test_func_kwargs:
+            sig = inspect.signature(test_func)
+            accepted_kwargs = set(sig.parameters.keys())
+            filtered_kwargs = {
+                k: v for k, v in test_func_kwargs.items() if k in accepted_kwargs
+            }
+            dropped = set(test_func_kwargs.keys()) - set(filtered_kwargs.keys())
+            if dropped:
+                log.warning(
+                    f"Dropped unsupported kwargs for {test_func.__name__}: {dropped}"
+                )
+        else:
+            filtered_kwargs = {}
+
+        test = test_func(dg1[value_col], dg2[value_col], **filtered_kwargs)  # type: ignore
+
+        # add Shapiro-Wilk as test for normality and Levene's for text on equal variance
+        shapiro_1_stat, shapiro_1_p = stats.shapiro(dg1[value_col])
+        shapiro_2_stat, shapiro_2_p = stats.shapiro(dg2[value_col])
 
         dr = pd.DataFrame(
             {
-                **dict(zip([g + "_g1" for g in group_cols], gk1)),
-                **dict(zip([g + "_g2" for g in group_cols], gk2)),
+                **dict(zip([g + "_g1" for g in group_cols], gk1)),  # type: ignore
+                **dict(zip([g + "_g2" for g in group_cols], gk2)),  # type: ignore
                 "stat": test.statistic,
                 "pval": test.pvalue,
-                "dof": test.df,
+                "dof": test.df if "df" in test.__dir__() else "NA",
                 "n1": len(dg1),
                 "n2": len(dg2),
+                "shapiro_1_p": shapiro_1_p,
+                "shapiro_2_p": shapiro_2_p,
+                "kwargs": str(filtered_kwargs),
             },
-            index=[0],
+            index=[0],  # type: ignore
         )
 
         data.append(dr)
@@ -919,13 +954,22 @@ def make_xaxis_numeric(
     cat2num = [] if cat2num is None else cat2num
 
     for ax_cfg in ax_tuples:
-        xax = fig.layout[ax_cfg["xaxis_label"]]
+        # xax = fig.layout[ax_cfg["xaxis_label"]]
 
-        if xax.type != "linear":
+        # only use axis if there is data on the axis
+        traces = [
+            tr
+            for tr in list(
+                fig.select_traces(row=ax_cfg["row"], col=ax_cfg["col"]),
+            )
+            if tr.type in ["box", "violin"]
+        ]
+
+        if traces != []:
             # create a map for values
             xvals = []
             offset_grs = []
-            for tr in fig.select_traces(row=ax_cfg["row"], col=ax_cfg["col"]):
+            for tr in traces:
                 xvals.append(tr.x)
                 offset_grs.append([tr.offsetgroup])
 
@@ -938,7 +982,7 @@ def make_xaxis_numeric(
             offsets = np.linspace(-0.5, 0.5, len(uoffsets) + 2)[1:-1]
             offset_cat_map = dict(zip(uoffsets, offsets))
 
-            for tr in fig.select_traces(row=ax_cfg["row"], col=ax_cfg["col"]):
+            for tr in traces:
                 tr.x = [x_cat_map[x] + offset_cat_map[tr.offsetgroup] for x in tr.x]
                 if isinstance(tr, _box.Box):
                     tr.width = 0.8 / (len(uoffsets) + 2)
@@ -951,9 +995,12 @@ def make_xaxis_numeric(
                 row=ax_cfg["row"],
                 col=ax_cfg["col"],
             )
+
             cat2num.append(
                 Cat2Nums(
-                    ax_cfg=ax_cfg, x_cat_map=x_cat_map, offset_cat_map=offset_cat_map
+                    ax_cfg=ax_cfg,
+                    x_cat_map=x_cat_map,
+                    offset_cat_map=offset_cat_map,
                 )
             )
 
@@ -1507,7 +1554,7 @@ def plot_residuals(
     xvals = x if x is not None else np.arange(len(ytrue))
     feature_names = feature_names or [f"x{i}" for i in range(res.shape[1])]
 
-    df = pd.DataFrame(res, columns=[f"resid_{f}" for f in feature_names])
+    df = pd.DataFrame(res, columns=[f"resid_{f}" for f in feature_names])  # type: ignore
     df["x"] = xvals
     dm = pd.melt(df, id_vars=["x"])
 
@@ -1519,7 +1566,7 @@ def plot_residuals(
 if __name__ == "__main__":
     import pandas as pd
 
-    df = pd.DataFrame(np.random.randn(200, 2), columns=["a", "b"])
+    df = pd.DataFrame(np.random.randn(200, 2), columns=["a", "b"])  # type: ignore
 
     df["label"] = np.random.choice(["aa", "bb", "cc"], 200)
     df["color"] = np.random.choice(["xx", "yy", "zz"], 200)

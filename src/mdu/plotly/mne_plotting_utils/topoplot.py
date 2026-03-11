@@ -10,6 +10,8 @@ def create_plotly_topoplot(
     inst: mne.io.Raw | mne.Epochs | mne.Evoked,
     contour_kwargs: dict = {"colorscale": "Viridis"},
     show: bool = False,
+    scale_range: float = 1.2,
+    blank_scaling: float = 0.2,
 ) -> go.FigureWidget:
     """Plot a topoplot from data and an mne instance for meta data information
 
@@ -32,18 +34,19 @@ def create_plotly_topoplot(
     pos = mne.channels.layout._find_topomap_coords(
         inst.info, inst.ch_names, to_sphere=True
     )
-    r = get_radius(pos, scale_range=1.2)
+    r = get_radius(pos, scale_range=scale_range)
     origin = get_origin(pos, inst.ch_names)
 
     fig = go.Figure()
     fig = plot_contour_heatmap(
         fig,
         data,
-        inst,
+        # inst,
         pos,
         origin=origin,
         radius=r,
         contour_kwargs=contour_kwargs,
+        blank_scaling=blank_scaling,
     )
     fig = plot_sensors_at_topo_pos(fig, inst, pos=pos)
     fig = plot_head_sphere_nose_and_ears(
@@ -125,7 +128,6 @@ def get_origin(pos: np.ndarray, ch_names: list[str]) -> np.ndarray:
 def plot_contour_heatmap(
     fig: go.Figure,
     data: np.ndarray,
-    inst: mne.io.Raw | mne.Epochs | mne.Evoked,
     pos: np.ndarray,
     origin: np.ndarray = np.asarray([0, 0]),
     radius: float = 1,
@@ -145,8 +147,6 @@ def plot_contour_heatmap(
         Plotly figure object to add the contour plot to.
     data : np.ndarray
         Array of shape (n_channels,) containing the data values for each sensor.
-    inst : mne.io.Raw | mne.Epochs | mne.Evoked
-        MNE instance containing channel information.
     pos : np.ndarray
         Array of shape (n_channels, 2) containing the 2D positions of sensors.
     origin : np.ndarray, optional
@@ -170,7 +170,6 @@ def plot_contour_heatmap(
         Updated figure widget with the contour heatmap added.
     """
     # 2D interpolation
-    blank_scaling = 0.2
     fig = go.Figure()
     interp = CloughTocher2DInterpolator(pos, data)
     xx, yy = np.meshgrid(
@@ -183,9 +182,7 @@ def plot_contour_heatmap(
     # mask out internal points on the grid which are further away from any
     # channel than a fraction of the radius defined by blank_scaling
     gridpoints = np.stack([xx, yy], axis=-1)
-    dist_tensor = np.asarray(
-        [np.linalg.norm(gridpoints - p, axis=-1) for p in pos]
-    )
+    dist_tensor = np.asarray([np.linalg.norm(gridpoints - p, axis=-1) for p in pos])
     blank_msk = np.all(dist_tensor >= radius * blank_scaling, axis=0)
     z[blank_msk] = np.nan
 
@@ -201,9 +198,7 @@ def plot_contour_heatmap(
     # Using coloraxis above is used to unify in subplots with multiple axis
     # but removes any colorscale arguments -> manually fix here
     if "colorscale" in contour_kwargs:
-        fig = fig.update_layout(
-            coloraxis=dict(colorscale=contour_kwargs["colorscale"])
-        )
+        fig = fig.update_layout(coloraxis=dict(colorscale=contour_kwargs["colorscale"]))
 
     if show:
         fig.show()

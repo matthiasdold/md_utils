@@ -34,14 +34,13 @@ class ToFloatConverter:
             If input array contains mixed types.
         """
         assert all([isinstance(e, type(x[0])) for e in x]), (
-            "Input types are not all"
-            f" {type(x[0])=}, please to a single type first."
+            f"Input types are not all {type(x[0])=}, please to a single type first."
         )
 
         if not isinstance(x[0], float | int):
             # Needs conversion
-            match type(x[0]):
-                case datetime:
+            match x[0]:
+                case datetime():
                     x = np.array([_.timestamp() for _ in x])
                     self.back_conversion = partial(
                         self.from_timestamp_with_offset, offset=x[0]
@@ -70,9 +69,7 @@ class ToFloatConverter:
         """
         return np.asarray([self.back_conversion(e) for e in x])
 
-    def from_timestamp_with_offset(
-        self, ts: datetime.timestamp, offset: float
-    ):
+    def from_timestamp_with_offset(self, ts: datetime.timestamp, offset: float):
         """
         Convert timestamp back to datetime with offset.
 
